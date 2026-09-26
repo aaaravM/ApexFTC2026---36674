@@ -35,24 +35,30 @@ public final class RobotConstants {
     // ==========================================================================================
     public static final class Names {
         // -- Drivetrain: Control Hub motor ports 0-3 --
-        public static final String FRONT_LEFT   = "front_left";
-        public static final String FRONT_RIGHT  = "front_right";
-        public static final String BACK_LEFT    = "back_left";
-        public static final String BACK_RIGHT   = "back_right";
+        // These match the team's EXISTING Robot Configuration exactly (lowercase, no separators).
+        // The physical configuration wins over any naming convention -- renaming devices on the
+        // Driver Station to match a style guide is a great way to break working code the night
+        // before a competition.
+        public static final String FRONT_LEFT   = "leftfront";
+        public static final String FRONT_RIGHT  = "rightfront";
+        public static final String BACK_LEFT    = "leftback";
+        public static final String BACK_RIGHT   = "rightback";
 
         // -- Odometry: configure as "goBILDA Pinpoint Odometry Computer" on an I2C bus.
         //    IMPORTANT: use I2C bus 1, 2 or 3 -- NOT bus 0. Bus 0 shares with the Control Hub's
         //    internal IMU and you will get bus contention / dropped reads.
         public static final String PINPOINT      = "pinpoint";
 
-        // -- Shooter / turret --
+        // -- Shooter / turret -- (not yet in the team's configuration; add these as you build)
         public static final String FLYWHEEL      = "flywheel";
         public static final String FLYWHEEL_2    = "flywheel_2";   // set USE_DUAL_FLYWHEEL=false if absent
         public static final String TURRET        = "turret";
         public static final String FEEDER        = "feeder";       // servo or CR servo that pushes a ball in
 
-        // -- Intake / sorting --
-        public static final String INTAKE        = "intake";
+        // -- Intake / sorting -- (existing config names)
+        public static final String INTAKE        = "intakemain";
+        public static final String INTAKE_SERVO_L = "leftintake";
+        public static final String INTAKE_SERVO_R = "rightintake";
         public static final String BALL_COLOR    = "ball_color";   // REV Color Sensor V3 in the hopper throat
 
         // -- Vision --
