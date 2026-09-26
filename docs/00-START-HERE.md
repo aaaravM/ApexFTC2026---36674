@@ -27,10 +27,18 @@ SDK, and `adb`, which are otherwise three separate manual installs. You can stil
 Code if you prefer the editor — it is the same files on disk — and just press the green Run button in
 Android Studio to deploy. Many teams work exactly that way.
 
-> Concretely: you currently have JDK 25 installed and no Android SDK. This project builds against
-> Gradle 9.1 with Android Gradle Plugin 8.13.2, which officially supports JDK 17–21. JDK 25 is not
-> a supported combination and will likely fail a command-line build. Android Studio ships its own
-> bundled JDK and uses that instead of yours, which sidesteps the problem entirely.
+> **On your JDK 25 — an earlier version of this doc overstated the problem.** The facts, checked:
+> Gradle's official compatibility matrix lists Java 25 as supported for running Gradle from
+> **9.1.0 onward**, and this project's wrapper is pinned to exactly `gradle-9.1.0-bin`. Running
+> `./gradlew :TeamCode:tasks` and `:TeamCode:dependencies` on your Temurin 25 succeeds today.
+> AGP 8.13 documents a JDK *minimum* of 17 and states no maximum; Google simply tests against the
+> JDK 21 that Android Studio bundles. So JDK 25 is **untested rather than unsupported** — likely
+> fine, not guaranteed. A full `assembleDebug` has not been proven here only because no Android SDK
+> is installed yet.
+>
+> Practical advice: use Android Studio's bundled JDK and the question never arises. If you build
+> from the command line and hit anything strange in javac, D8/R8 or AAPT2, install JDK 21 and point
+> Gradle at it before suspecting your code.
 
 Download: <https://developer.android.com/studio>
 
@@ -43,13 +51,16 @@ features the older AGP needs, so downgrading breaks the build in a more confusin
 
 Possible, but you are signing up for manual maintenance. You need:
 
-1. **JDK 21** (not 25). Temurin 21: <https://adoptium.net/temurin/releases/?version=21>
+1. **JDK 21** recommended (your JDK 25 will probably work — see the note above — but 21 is what
+   Google tests). Temurin 21: <https://adoptium.net/temurin/releases/?version=21>
 2. **Android SDK command-line tools**: <https://developer.android.com/studio#command-line-tools-only>
 3. Then install exactly what this project asks for:
    ```bash
-   sdkmanager "platform-tools" "platforms;android-30" "build-tools;30.0.3" "ndk;21.3.6528147"
+   sdkmanager "platform-tools" "platforms;android-30" "build-tools;35.0.0" "ndk;21.3.6528147"
    ```
-   (`compileSdkVersion 30`, `ndkVersion 21.3.6528147` — from `build.common.gradle`.)
+   `compileSdkVersion 30` and `ndkVersion 21.3.6528147` come from `build.common.gradle`, but the
+   **Build Tools version comes from AGP, not from the project** — AGP 8.13 requires
+   **35.0.0**, which is newer than the compile SDK and looks wrong at first glance. It isn't.
 4. Create `local.properties` in the repo root:
    ```properties
    sdk.dir=C\:\\Users\\MUTTA\\AppData\\Local\\Android\\Sdk
