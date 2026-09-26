@@ -1,7 +1,5 @@
 # BIOBUZZ 2026-27 — what the software needs to know
 
-Written for: your team's programmers and strategy lead.
-
 BIOBUZZ presented by RTX is the 2026-27 FIRST Tech Challenge game, part of the **FIRST CANOPY**
 season. Kickoff was **12 September 2026**.
 

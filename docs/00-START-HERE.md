@@ -1,9 +1,5 @@
 # Start here — FTC BIOBUZZ 2026-27 setup and odometry bring-up
 
-Written for: your team's programmers, working on this repo from scratch.
-
----
-
 ## 0. Two things about your tools, before anything else
 
 **The WPILib extension does nothing for you. Uninstall it.** WPILib is the *FRC* (FIRST Robotics

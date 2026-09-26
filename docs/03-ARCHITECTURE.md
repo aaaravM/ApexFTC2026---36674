@@ -1,9 +1,5 @@
 # How the auto-aiming turret works
 
-Written for: your team's programmers, and anyone on the team who has to explain this to a judge.
-
----
-
 ## The one thing in the original plan that has to change
 
 Your plan was: *odometry tells us where we are, so we compute the angle to the goal and shoot.*

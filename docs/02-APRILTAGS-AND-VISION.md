@@ -1,7 +1,5 @@
 # AprilTags ("the QR codes") and vision
 
-Written for: your team's programmers.
-
 ## First, a naming thing worth getting right
 
 The black-and-white squares on the FTC field are **AprilTags**, not QR codes. It matters practically,
