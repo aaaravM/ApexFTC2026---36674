@@ -7,6 +7,8 @@ import com.pedropathing.revhub.drivetrains.Mecanum;
 import com.pedropathing.revhub.drivetrains.MecanumConfig;
 import com.pedropathing.revhub.localizers.PinpointConfig;
 import com.pedropathing.revhub.localizers.PinpointLocalizer;
+import com.qualcomm.hardware.gobilda.GoBildaPinpointDriver;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.HardwareMap;
 
 import org.firstinspires.ftc.robotcore.external.navigation.DistanceUnit;
@@ -94,9 +96,34 @@ public final class PedroConstants {
             // scales both offsets by 25.4 -- silently, with no crash and no straight-line symptom.
             c.offsetUnits.set(DistanceUnit.MM);
 
-            // podType defaults to goBILDA_4_BAR_POD, which is exactly our hardware, so it is left
-            // alone deliberately rather than restated.
+            // Everything Pedro reports comes back in this unit. Inches, to match the rest of the
+            // codebase. Stated explicitly rather than relying on the default, because every
+            // ballistics number downstream assumes it.
+            c.globalDistanceUnit.set(DistanceUnit.INCH);
+
+            // Our hardware is the 4-Bar Odometry Pack. This IS the default, but stating it means a
+            // future Pedro release changing its default cannot silently change our pod scaling.
+            c.podType.set(GoBildaPinpointDriver.GoBildaOdometryPods.goBILDA_4_BAR_POD);
+
+            // Pod counting directions, carried over from RobotConstants so there is one source of
+            // truth shared with the non-Pedro Odometry class.
+            c.xPodDirection.set(RobotConstants.Odo.REVERSE_X_ENCODER
+                    ? GoBildaPinpointDriver.EncoderDirection.REVERSED
+                    : GoBildaPinpointDriver.EncoderDirection.FORWARD);
+            c.yPodDirection.set(RobotConstants.Odo.REVERSE_Y_ENCODER
+                    ? GoBildaPinpointDriver.EncoderDirection.REVERSED
+                    : GoBildaPinpointDriver.EncoderDirection.FORWARD);
+
+            // Recalibrate the IMU at construction but keep the pose, so an autonomous OpMode can set
+            // a known starting pose afterwards without it being zeroed underneath.
+            // The robot MUST be stationary while this happens.
+            c.resetMode.set(PinpointLocalizer.ResetMode.RECALIBRATE_IMU);
         }));
+    }
+
+    /** Boolean "is reversed" to the SDK Direction enum Pedro's config wants. */
+    private static DcMotorSimple.Direction direction(boolean reversed) {
+        return reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD;
     }
 
     // ==========================================================================================
@@ -114,10 +141,14 @@ public final class PedroConstants {
             // Our existing teleop reverses the LEFT pair. Pedro's mecanum mixing is byte-for-byte
             // identical to the mixing already in MecanumTeleOp, so these transfer 1:1 with no sign
             // rework at all.
-            c.frontLeftReversed.set(RobotConstants.Drive.REVERSE_FRONT_LEFT);
-            c.frontRightReversed.set(RobotConstants.Drive.REVERSE_FRONT_RIGHT);
-            c.backLeftReversed.set(RobotConstants.Drive.REVERSE_BACK_LEFT);
-            c.backRightReversed.set(RobotConstants.Drive.REVERSE_BACK_RIGHT);
+            //
+            // Note these are Direction enums, not booleans -- the field names are
+            // *Direction and take DcMotorSimple.Direction, verified against the compiled
+            // revhub-3.0.1 jar rather than guessed.
+            c.frontLeftDirection.set(direction(RobotConstants.Drive.REVERSE_FRONT_LEFT));
+            c.frontRightDirection.set(direction(RobotConstants.Drive.REVERSE_FRONT_RIGHT));
+            c.backLeftDirection.set(direction(RobotConstants.Drive.REVERSE_BACK_LEFT));
+            c.backRightDirection.set(direction(RobotConstants.Drive.REVERSE_BACK_RIGHT));
 
             // Pedro's Mecanum sets ZeroPowerBehavior.FLOAT in its constructor and only brakes when
             // this is true AND the call came through manual(). Leave it false and the robot COASTS

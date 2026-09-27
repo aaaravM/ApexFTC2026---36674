@@ -45,11 +45,15 @@ tasks.register('ideLibs') {
         int aars = 0
         int skipped = 0
 
-        config.resolvedConfiguration.lenientConfiguration
-                .getArtifacts { true }
-                .each { artifact ->
+        // Gradle 9 removed LenientConfiguration.getArtifacts(Spec). The artifact view is the
+        // supported replacement, and lenient = true means one unresolvable dependency does not
+        // fail the whole task -- which matters for an editor-only convenience.
+        def view = config.incoming.artifactView { av -> av.lenient = true }
+
+        view.artifacts.each { artifact ->
             def file = artifact.file
-            def base = "${artifact.moduleVersion.id.group}-${artifact.moduleVersion.id.name}-${artifact.moduleVersion.id.version}"
+            def base = artifact.id.componentIdentifier.displayName
+                    .replaceAll('[^A-Za-z0-9._-]', '_')
 
             if (file.name.endsWith('.jar')) {
                 copy {
@@ -81,6 +85,24 @@ tasks.register('ideLibs') {
             } else {
                 skipped++
             }
+        }
+
+        // android.jar is the Android BOOTclasspath, not a dependency artifact, so it never appears
+        // in the artifact view. Without it the editor cannot resolve android.graphics.Color,
+        // android.util.Size or anything else in the framework -- which is most of an FTC project.
+        // Copy it in explicitly, using the same compileSdkVersion the build uses.
+        def sdkDir = android.sdkDirectory
+        def compileSdk = android.compileSdkVersion   // e.g. "android-30"
+        def androidJar = new File(sdkDir, "platforms/${compileSdk}/android.jar")
+        if (androidJar.exists()) {
+            copy {
+                from androidJar
+                into ideLibsDir
+                rename { "_android-${compileSdk}.jar" }
+            }
+            logger.lifecycle("ideLibs: included ${androidJar}")
+        } else {
+            logger.lifecycle("ideLibs: WARNING android.jar not found at ${androidJar} -- framework classes will not resolve")
         }
 
         logger.lifecycle("ideLibs: staged ${jars} jar(s) and ${aars} aar(s) into ${ideLibsDir}")

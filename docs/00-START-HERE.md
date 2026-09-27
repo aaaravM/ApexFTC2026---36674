@@ -22,23 +22,51 @@ requires you to install the Android SDK and a JDK manually.
 
 ### So what should you actually do?
 
-**Install Android Studio and use it to build and deploy.** It bundles the correct JDK, the Android
-SDK, and `adb`, which are otherwise three separate manual installs. You can still write code in VS
-Code if you prefer the editor — it is the same files on disk — and just press the green Run button in
-Android Studio to deploy. Many teams work exactly that way.
+**VS Code / Cursor works, and it is already set up and verified on this machine.** No Android Studio
+required. The toolchain was installed and the project builds:
 
-> **On your JDK 25 — an earlier version of this doc overstated the problem.** The facts, checked:
-> Gradle's official compatibility matrix lists Java 25 as supported for running Gradle from
-> **9.1.0 onward**, and this project's wrapper is pinned to exactly `gradle-9.1.0-bin`. Running
-> `./gradlew :TeamCode:tasks` and `:TeamCode:dependencies` on your Temurin 25 succeeds today.
-> AGP 8.13 documents a JDK *minimum* of 17 and states no maximum; Google simply tests against the
-> JDK 21 that Android Studio bundles. So JDK 25 is **untested rather than unsupported** — likely
-> fine, not guaranteed. A full `assembleDebug` has not been proven here only because no Android SDK
-> is installed yet.
+```
+BUILD SUCCESSFUL
+TeamCode/build/outputs/apk/debug/TeamCode-debug.apk   (52.5 MB)
+```
+
+What is installed and working:
+
+| Piece | Version | Where |
+|---|---|---|
+| Android SDK command-line tools | rev 23 | `%LOCALAPPDATA%\Android\Sdk\cmdline-tools\latest` |
+| Android platform | android-30 | matches `compileSdkVersion 30` |
+| Build tools | 35.0.0 | required by AGP 8.13.2 |
+| platform-tools (`adb`) | 37.0.1 | `%LOCALAPPDATA%\Android\Sdk\platform-tools` |
+| JDK | Temurin **25** | already on your PATH — it works, see below |
+| Gradle | 9.1.0 | downloaded by the wrapper |
+
+Everyday commands:
+
+```bash
+./gradlew :TeamCode:assembleDebug     # compile
+./gradlew :TeamCode:installDebug      # deploy to the robot over USB
+./gradlew :TeamCode:ideLibs           # refresh editor IntelliSense (see below)
+```
+
+**Android Studio is still a reasonable fallback** if something in the editor tooling misbehaves — it
+handles all of this natively — but you do not need it, and nothing here depends on it.
+
+> **JDK 25 works. Settled by building with it, not by reading docs.** An earlier version of this
+> guide said JDK 25 "will likely fail a command-line build". It doesn't: a full
+> `:TeamCode:assembleDebug` — javac, D8/R8, AAPT2, packaging, the whole chain — completes on
+> Temurin 25 and produces a working APK.
 >
-> Practical advice: use Android Studio's bundled JDK and the question never arises. If you build
-> from the command line and hit anything strange in javac, D8/R8 or AAPT2, install JDK 21 and point
-> Gradle at it before suspecting your code.
+> For the record: Gradle's compatibility matrix lists Java 25 as supported for running Gradle from
+> **9.1.0** onward, and this project's wrapper is pinned to exactly `gradle-9.1.0-bin`. AGP 8.13
+> documents a JDK *minimum* of 17 and states no maximum. You will see a deprecation warning about
+> `source`/`target` value 8 being obsolete — that comes from the project targeting Java 8 (which it
+> must, because OnBot Java only supports Java 8), not from your JDK. It is noise.
+>
+> If you ever want every machine pinned to one JDK, the portable way is **not**
+> `org.gradle.java.home` (an absolute path that cannot be committed). Run
+> `./gradlew updateDaemonJvm --jvm-version=21` once, which writes
+> `gradle/gradle-daemon-jvm.properties`, and commit that — then CLI and IDE agree on every computer.
 
 Download: <https://developer.android.com/studio>
 
@@ -47,39 +75,71 @@ Download: <https://developer.android.com/studio>
 features the older AGP needs, so downgrading breaks the build in a more confusing way.
 
 <details>
-<summary>Advanced: building from VS Code / the command line without Android Studio</summary>
+<summary>Setting this up on ANOTHER computer — the exact steps that worked here</summary>
 
-Possible, but you are signing up for manual maintenance. You need:
-
-1. **JDK 21** recommended (your JDK 25 will probably work — see the note above — but 21 is what
-   Google tests). Temurin 21: <https://adoptium.net/temurin/releases/?version=21>
-2. **Android SDK command-line tools**: <https://developer.android.com/studio#command-line-tools-only>
-3. Then install exactly what this project asks for:
+1. **JDK.** Temurin 21 or 25 both work. <https://adoptium.net/>
+2. **Android SDK command-line tools** — the "command line tools only" download:
+   <https://developer.android.com/studio#command-line-tools-only>
+   Extract so that `sdkmanager`/`android` ends up at
+   `<SDK>\cmdline-tools\latest\bin\`. The zip has a top-level `cmdline-tools` folder you rename to
+   `latest`.
+3. **Install the packages.** Note two things that cost time here:
+   - `sdkmanager` is **deprecated** in cmdline-tools rev 23. It still works but delegates to a new
+     `android` CLI whose syntax is `android sdk install <package>`.
+   - Call `android.exe` **directly** and quote the package name. Going through `sdkmanager.bat`
+     splits `platforms;android-30` on the semicolon and you get
+     *"Package platforms not found. Package android-30 not found."*
    ```bash
-   sdkmanager "platform-tools" "platforms;android-30" "build-tools;35.0.0" "ndk;21.3.6528147"
+   android.exe sdk install "platform-tools"
+   android.exe sdk install "platforms;android-30"
+   android.exe sdk install "build-tools;35.0.0"
    ```
-   `compileSdkVersion 30` and `ndkVersion 21.3.6528147` come from `build.common.gradle`, but the
-   **Build Tools version comes from AGP, not from the project** — AGP 8.13 requires
-   **35.0.0**, which is newer than the compile SDK and looks wrong at first glance. It isn't.
-4. Create `local.properties` in the repo root:
+   The new CLI exits with a stack-buffer-overrun code **after** finishing successfully. Ignore the
+   exit code and check the files instead.
+4. **Create `local.properties`** in the repo root with that machine's path:
    ```properties
-   sdk.dir=C\:\\Users\\MUTTA\\AppData\\Local\\Android\\Sdk
+   sdk.dir=C\:\\Users\\<you>\\AppData\\Local\\Android\\Sdk
    ```
-5. Point Gradle at JDK 21 in `gradle.properties`:
-   ```properties
-   org.gradle.java.home=C\:\\Program Files\\Eclipse Adoptium\\jdk-21
-   ```
-6. Build and deploy:
-   ```bash
-   ./gradlew assembleDebug
-   adb install -r TeamCode/build/outputs/apk/debug/TeamCode-debug.apk
-   ```
+   It is gitignored, so every machine needs its own.
+5. **Build**: `./gradlew :TeamCode:assembleDebug`
+6. **IntelliSense**: `./gradlew :TeamCode:ideLibs`, then *Developer: Reload Window*.
 
-Also install the **Extension Pack for Java** and **Gradle for Java** extensions so VS Code gives you
-autocomplete. Without them, VS Code shows the warning you may already have seen —
-*"not on the classpath of project TeamCode, only syntax errors are reported"* — which means
-IntelliSense is off until Gradle syncs.
+**Do NOT let AGP install the SDK packages for you.** It tries, and on this setup it hangs: rev 23
+cmdline-tools writes SDK metadata at XML version 4 while AGP 8.13 only understands up to version 3.
+You will see `This version only understands SDK XML versions up to 3 but an SDK XML file of version 4
+was encountered`, followed by the build sitting forever on
+`Preparing "Install Android SDK Build-Tools 35"`. Pre-installing the packages in step 3 avoids it
+entirely. If you interrupt AGP mid-install, delete the partial `build-tools\35.0.0` folder and
+reinstall — a half-installed one is missing `aapt2.exe` and fails later with a confusing error.
+
+**Which versions you actually need, and where each comes from:**
+- `compileSdkVersion 30` → `platforms;android-30`, from `build.common.gradle`
+- `build-tools;35.0.0` → **from AGP, not the project.** It is newer than the compile SDK, which
+  looks wrong and isn't.
+- The `ndkVersion 21.3.6528147` in `build.common.gradle` is **not needed** — this project builds
+  without it. Don't spend the gigabyte.
 </details>
+
+### Editor IntelliSense
+
+VS Code showed *"not on the classpath of project TeamCode, only syntax errors are reported"*. That
+has a real root cause: **the Java extension cannot import an Android Gradle project.** It understands
+plain Java/Gradle, not the Android Gradle Plugin, so the import was never going to succeed and no
+amount of *Clean Java Language Server Workspace* fixes it.
+
+The fix, already committed in [`.vscode/settings.json`](../.vscode/settings.json): turn the Gradle
+importer off and describe the project manually as an unmanaged folder. Dependency jars are staged
+into `.ide-libs/` by a Gradle task, because the extension will not resolve paths into the Gradle
+cache in your home directory.
+
+```bash
+./gradlew :TeamCode:ideLibs      # stages 43 jars incl. android.jar
+```
+then **Developer: Reload Window**. Re-run it whenever dependencies change.
+
+Install these two extensions (both on Open VSX, so Cursor can too):
+`vscjava.vscode-java-pack` and `vscjava.vscode-gradle`. They are recommended automatically via
+[`.vscode/extensions.json`](../.vscode/extensions.json).
 
 ---
 

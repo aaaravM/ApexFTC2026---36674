@@ -83,6 +83,22 @@ public final class RobotConstants {
          * for the single-camera arrangement.
          */
         public static final String WEBCAM_BALLS  = "Webcam 2";
+
+        /**
+         * Limelight 3A. It is not added from the device-type dropdown -- run a <b>scan</b> in the
+         * Robot Configuration and it appears as <b>"Ethernet Device"</b>, which you rename to this.
+         *
+         * <p>Wiring: one USB-C to USB-A cable into the Control Hub's <b>USB 3.0 (blue) Type-A</b>
+         * host port. No separate power -- it is bus-powered at 4 W. The USB-C port on the Hub is a
+         * <i>device</i> port for a PC and cannot host it. A Control Hub supports only ONE Limelight,
+         * and if you add a webcam it goes on the remaining USB 2.0 port.
+         *
+         * <p>Watch out for the two different IP addresses: the small grey text under the device name
+         * in the config is the <b>Control Hub's</b> DHCP-assigned address, not the Limelight's. The
+         * IP field in the config wants the Limelight's own, which defaults to the same subnet with
+         * last octet 1. Confusing these is the classic setup failure.
+         */
+        public static final String LIMELIGHT     = "limelight";
     }
 
     // ==========================================================================================
@@ -407,9 +423,27 @@ public final class RobotConstants {
         public static final double CX = 319.5;
         public static final double CY = 239.5;
 
-        /** Manual exposure keeps AprilTags sharp while the robot moves. TUNE ME. */
+        /**
+         * Manual exposure keeps AprilTags sharp while the robot moves. TUNE ME.
+         *
+         * <p>These apply only to a <b>UVC webcam</b> via {@code ExposureControl}/{@code GainControl}.
+         * Those classes do not exist for a Limelight -- the 3A has a rolling shutter and you set a
+         * short fixed exposure and raised gain in the <b>Limelight web UI's pipeline Input tab</b>
+         * instead. The need is the same: on auto-exposure, a moving robot smears tags into
+         * unreadability exactly when you need them.
+         */
         public static final long EXPOSURE_MS = 6;
         public static final int  GAIN        = 250;
+
+        /**
+         * Limelight result poll rate, Hz. Valid 1-250, SDK default 100.
+         *
+         * <p>Must be set <b>before</b> {@code start()} -- {@code setPollRateHz()} silently does
+         * nothing if the poller is already running, with no exception and no log. Note the interval
+         * is computed with integer division, so rates that do not divide 1000 evenly end up slightly
+         * faster than requested.
+         */
+        public static final int LIMELIGHT_POLL_HZ = 100;
     }
 
     // ==========================================================================================
@@ -448,6 +482,36 @@ public final class RobotConstants {
          * testing shows you are consistently low or high.
          */
         public static final double AIM_Z_BIAS_IN = 0.0;
+
+        // ---- Tag centroid -> CELL opening centre -------------------------------------------
+        // Every cluster member sits at (x, 7.1874, -5.622) inches from the cluster origin, with x
+        // in {-6.5, -2.75, +2.75, +6.5}. Those MAGNITUDES came out of the compiled SDK binary and
+        // are solid. See BiobuzzTags.
+        //
+        // What is NOT solid is how the cluster plane's axes map onto our +forward/+left/+up frame,
+        // because the SDK does not document it. So the two constants below carry the right
+        // magnitudes with a physically-reasoned sign, and are tunable.
+        //
+        // The reasoning: the tags are on the BOTTOM face of the CELL and the opening faces UP, so
+        // the origin should be above the tags. If T4 shows the aim is consistently high or low by
+        // about 7 inches, flip UP's sign. If it is consistently near or far by about 5.6 inches,
+        // flip FORWARD's. One test tells you both.
+
+        /** Origin offset above the tag centroid, inches. Magnitude verified; sign to confirm. */
+        public static final double CELL_OFFSET_UP_IN = 7.1874;
+
+        /** Origin offset beyond the tag centroid, inches. Magnitude verified; sign to confirm. */
+        public static final double CELL_OFFSET_FORWARD_IN = 5.622;
+
+        /**
+         * Scale on the sideways per-member correction. 1.0 is correct.
+         *
+         * <p>Set it to 0 to disable the correction entirely as a diagnostic: because the four x
+         * offsets are symmetric and sum to zero, seeing all four tags makes this correction a no-op
+         * anyway. So if aiming is good with four tags visible and biased sideways with one, this
+         * constant -- and the assumption that member order follows tag-ID order -- is what to suspect.
+         */
+        public static final double CELL_OFFSET_SCALE = 1.0;
     }
 
     // ==========================================================================================
