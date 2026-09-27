@@ -1,0 +1,14 @@
+{
+  // Recommended extensions. VS Code and Cursor both prompt to install these when the folder opens.
+  // All of them are on Open VSX under permissive licences, so Cursor can install every one.
+  "recommendations": [
+    "vscjava.vscode-java-pack",
+    "vscjava.vscode-gradle"
+  ],
+
+  // "FTC for VS Code" (Juice16236.ftc-for-vs-code) is deliberately NOT recommended. It is a
+  // community project with no FIRST affiliation, it does not build anything by itself, and it is
+  // not published to Open VSX so Cursor cannot install it from the marketplace at all. Use the
+  // Gradle tasks directly instead -- see docs/00-START-HERE.md.
+  "unwantedRecommendations": []
+}

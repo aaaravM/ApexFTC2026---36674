@@ -16,6 +16,11 @@ apply plugin: 'com.android.application'
 apply from: '../build.common.gradle'
 apply from: '../build.dependencies.gradle'
 
+// Adds the 'ideLibs' task, which stages dependency jars into .ide-libs/ so the VS Code / Cursor
+// Java extension can resolve them. Editor-only; it changes nothing about the APK. See
+// ide-libs.gradle for why it is needed and how to run it.
+apply from: '../ide-libs.gradle'
+
 android {
     namespace = 'org.firstinspires.ftc.teamcode'
 

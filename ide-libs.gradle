@@ -1,0 +1,92 @@
+// Stages dependency jars into .ide-libs/ so the VS Code / Cursor Java extension can resolve them.
+//
+// WHY THIS EXISTS
+// The Java extension (redhat.java / Eclipse JDT-LS) cannot import an Android Gradle project, so
+// .vscode/settings.json configures the workspace manually and points java.project.referencedLibraries
+// at .ide-libs/**/*.jar. JDT-LS will not resolve paths into the Gradle cache in your home
+// directory, so the jars have to be copied into the workspace.
+//
+// Two wrinkles this handles:
+//   1. Most FTC dependencies are .aar (Android archives), and JDT-LS cannot read an .aar at all.
+//      The Java classes live in a classes.jar INSIDE it, so we unzip and extract that.
+//   2. Names collide -- every aar contains a file called classes.jar -- so each one is renamed
+//      after the artifact it came from.
+//
+// HOW TO USE
+//   1. Add this line to the bottom of TeamCode/build.gradle:
+//          apply from: '../ide-libs.gradle'
+//   2. Run:   ./gradlew :TeamCode:ideLibs
+//   3. In VS Code / Cursor: "Developer: Reload Window"
+//   Re-run whenever you add or change a dependency.
+//
+// Android Studio needs none of this and is the zero-config option.
+//
+// NOTE: this task has not been run yet on this project -- there is no Android SDK installed on
+// this machine, so no dependency has ever been downloaded. Expect to iterate on it the first time.
+// If it misbehaves, the fallback is simply to build from Android Studio.
+
+def ideLibsDir = rootProject.file('.ide-libs')
+
+tasks.register('ideLibs') {
+    group = 'IDE'
+    description = 'Copy/extract dependency jars into .ide-libs for VS Code / Cursor IntelliSense'
+
+    doLast {
+        delete ideLibsDir
+        ideLibsDir.mkdirs()
+
+        // Prefer the debug compile classpath: it is what the editor should reflect.
+        def configName = configurations.findByName('debugCompileClasspath') != null
+                ? 'debugCompileClasspath'
+                : 'compileClasspath'
+        def config = configurations.getByName(configName)
+
+        int jars = 0
+        int aars = 0
+        int skipped = 0
+
+        config.resolvedConfiguration.lenientConfiguration
+                .getArtifacts { true }
+                .each { artifact ->
+            def file = artifact.file
+            def base = "${artifact.moduleVersion.id.group}-${artifact.moduleVersion.id.name}-${artifact.moduleVersion.id.version}"
+
+            if (file.name.endsWith('.jar')) {
+                copy {
+                    from file
+                    into ideLibsDir
+                    rename { "${base}.jar" }
+                }
+                jars++
+            } else if (file.name.endsWith('.aar')) {
+                // Pull classes.jar out of the aar and name it after the artifact.
+                def staging = new File(buildDir, "ide-libs-staging/${base}")
+                delete staging
+                copy {
+                    from zipTree(file)
+                    into staging
+                    include 'classes.jar'
+                }
+                def classesJar = new File(staging, 'classes.jar')
+                if (classesJar.exists()) {
+                    copy {
+                        from classesJar
+                        into ideLibsDir
+                        rename { "${base}.jar" }
+                    }
+                    aars++
+                } else {
+                    skipped++
+                }
+            } else {
+                skipped++
+            }
+        }
+
+        logger.lifecycle("ideLibs: staged ${jars} jar(s) and ${aars} aar(s) into ${ideLibsDir}")
+        if (skipped > 0) {
+            logger.lifecycle("ideLibs: skipped ${skipped} artifact(s) with no Java classes")
+        }
+        logger.lifecycle("ideLibs: now run 'Developer: Reload Window' in VS Code / Cursor")
+    }
+}

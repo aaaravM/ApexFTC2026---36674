@@ -1,0 +1,81 @@
+{
+  // ==========================================================================================
+  // Java IntelliSense for an FTC (Android Gradle) project in VS Code / Cursor.
+  //
+  // THE PROBLEM THIS SOLVES: the Java extension (redhat.java, via Eclipse JDT-LS) cannot import
+  // an ANDROID Gradle project. It understands plain Java/Gradle projects, not the Android Gradle
+  // Plugin. That is the actual root cause of the warning you have been seeing:
+  //
+  //     "RobotConstants.java is not on the classpath of project TeamCode,
+  //      only syntax errors are reported"
+  //
+  // No amount of "Java: Clean Java Language Server Workspace" or "Update project configuration"
+  // fixes it, because the import was never going to succeed. So instead we turn the Gradle
+  // importer OFF and describe the project to JDT-LS manually as an "unmanaged folder":
+  // where the sources are, and where the dependency jars are.
+  //
+  // Gradle still does all the real building. This only affects editor intelligence.
+  //
+  // ZERO-CONFIG ALTERNATIVE: Android Studio handles all of this natively. If IntelliSense here
+  // gives you trouble, build from Android Studio and keep editing wherever you like -- it is the
+  // same files on disk.
+  // ==========================================================================================
+
+  // Stop JDT-LS trying (and failing) to import via Gradle.
+  "java.import.gradle.enabled": false,
+  "java.import.maven.enabled": false,
+
+  // Tell it where our source actually lives.
+  "java.project.sourcePaths": [
+    "TeamCode/src/main/java",
+    "FtcRobotController/src/main/java"
+  ],
+
+  // Dependency jars, staged into the workspace by the ideLibs Gradle task. These paths must be
+  // workspace-relative -- JDT-LS will not resolve a path into the Gradle cache in your home
+  // directory, which is also why we cannot just point at ~/.gradle.
+  //
+  // Run this once per machine, and again whenever dependencies change:
+  //     ./gradlew ideLibs          (see ide-libs.gradle)
+  // then "Developer: Reload Window".
+  "java.project.referencedLibraries": [
+    ".ide-libs/**/*.jar"
+  ],
+
+  // Match the project's Java level. build.common.gradle pins source/target to 1.8, because
+  // OnBot Java only supports Java 8 -- so code that compiles here must compile there too.
+  "java.configuration.updateBuildConfiguration": "disabled",
+  "java.compile.nullAnalysis.mode": "disabled",
+
+  // Keep JDT-LS's generated project metadata out of the working tree. .gitignore covers these
+  // anyway, but not generating them is tidier.
+  "java.import.generatesMetadataFilesAtProjectRoot": false,
+
+  // ---- Editor conventions, so diffs stay clean across machines ----------------------------
+  "files.eol": "\n",
+  "files.encoding": "utf8",
+  "files.insertFinalNewline": true,
+  "files.trimTrailingWhitespace": true,
+  "editor.tabSize": 4,
+  "editor.insertSpaces": true,
+  "editor.rulers": [100],
+
+  // Don't index build output -- it is large, generated, and noise in search results.
+  "files.exclude": {
+    "**/build": true,
+    "**/.gradle": true,
+    "**/.ide-libs": true
+  },
+  "search.exclude": {
+    "**/build": true,
+    "**/.gradle": true,
+    "**/.ide-libs": true,
+    "**/libs/**/*.aar": true
+  },
+
+  // FtcRobotController/ is FIRST's code. Read it freely -- it is the best documentation there is --
+  // but never edit it, or SDK updates stop merging cleanly.
+  "files.readonlyInclude": {
+    "FtcRobotController/**": true
+  }
+}

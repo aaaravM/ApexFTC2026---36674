@@ -1,6 +1,10 @@
 repositories {
     mavenCentral()
     google() // Needed for androidx
+
+    // Pedro Pathing's 'tuning' artifact pulls dev.frozenmilk.sinister:Sloth, which is NOT on
+    // Maven Central. 'revhub' alone would resolve without this, but the tuners would not.
+    maven { url = 'https://repo.dairy.foundation/releases/' }
 }
 
 dependencies {
@@ -13,5 +17,28 @@ dependencies {
     implementation 'org.firstinspires.ftc:FtcCommon:12.0.0'
     implementation 'org.firstinspires.ftc:Vision:12.0.0'
     implementation 'androidx.appcompat:appcompat:1.2.0'
-}
 
+    // ---- Pedro Pathing 3.0.1 (published 2026-09-18) --------------------------------------
+    //
+    // 'revhub' is the FTC/Android module. In v2 it was called 'ftc'; if you find a tutorial
+    // using  implementation 'com.pedropathing:ftc:2.x.y'  that tutorial is for v2 and its API
+    // will not compile against v3 -- v3 is a full rewrite.
+    //
+    // Do NOT also declare 'com.pedropathing:core'. revhub depends on it transitively.
+    implementation 'com.pedropathing:revhub:3.0.1'
+
+    // 'tuning' provides AutoTune, which is how you tune Pedro in v3 (the old per-tuner OpModes
+    // are gone). It needs the dairy.foundation repository declared above.
+    implementation 'com.pedropathing:tuning:1.0.1'
+
+    // DELIBERATELY ABSENT: FTC Dashboard and FTControl Panels.
+    // BIOBUZZ Competition Manual section 12, rule R704.D names both by name as prohibited:
+    //   "Software may only stream robot control data, debugging data, and telemetry to and from
+    //    the ROBOT using the FTC Driver Station Application. Additional logging/streaming
+    //    services, such as those hosted by third party plugins and tools such as FTC Dashboard,
+    //    FTControl Panels, and others are prohibited."
+    // This is new for BIOBUZZ -- last season's rule named neither -- so older tutorials
+    // recommending them are out of date. Driver Station telemetry is the supported path.
+    // Also note: installing Panels and FTC Dashboard together crash-loops the Robot Controller
+    // on a port-binding conflict, so it would never have been both anyway.
+}

@@ -1,0 +1,48 @@
+# Line-ending policy for a team working across several computers.
+#
+# Why this file is necessary: git's core.autocrlf setting lives in per-machine config, which does
+# NOT travel with a clone. So without this file, whether your checkout gets LF or CRLF depends on
+# how each student's git happened to be installed. That produces diffs where the only change is
+# invisible whitespace, and it makes merges harder than they need to be.
+#
+# Normalise everything to LF in the repository. Git still checks text files out as CRLF on Windows
+# where that is the platform default, so nothing changes for you day to day.
+* text=auto eol=lf
+
+# Windows-only scripts must stay CRLF or cmd.exe mis-parses them.
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# gradlew is a shell script. It MUST be LF: with CRLF it fails on macOS and Linux with an
+# unhelpful "bad interpreter" error. It is currently CRLF in this working tree, which is the one
+# line-ending problem here with a real functional failure mode -- it just happens not to bite on
+# Windows, so it would have gone unnoticed until someone cloned onto a Mac.
+gradlew text eol=lf
+
+# Source and config: explicit, so nothing depends on git's content sniffing.
+*.java       text eol=lf
+*.gradle     text eol=lf
+*.properties text eol=lf
+*.xml        text eol=lf
+*.json       text eol=lf
+*.md         text eol=lf
+*.yml        text eol=lf
+*.yaml       text eol=lf
+*.txt        text eol=lf
+*.py         text eol=lf
+
+# Binaries: never touch these. Normalising a jar corrupts it.
+*.jar    binary
+*.aar    binary
+*.apk    binary
+*.so     binary
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.pdf    binary
+*.tflite binary
+*.zip    binary
+*.keystore binary
+*.jks    binary

@@ -43,6 +43,31 @@ captures/
 *.iml
 .idea/
 
+# ---------------------------------------------------------------------------------------------
+# VS Code / Cursor -- added for this team, since we work across several computers.
+#
+# NOTE we do NOT ignore .vscode/ wholesale: settings.json and extensions.json are committed on
+# purpose so every machine gets the same IntelliSense configuration and extension prompts. Only
+# the per-machine files below are ignored.
+# ---------------------------------------------------------------------------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/README.md
+
+# Eclipse JDT language-server project state, written by the VS Code / Cursor Java extension.
+# By default these go to the extension's workspace storage rather than the working tree
+# (java.import.generatesMetadataFilesAtProjectRoot defaults to false), but there are known cases
+# where that is not honoured, and .classpath and .factorypath can contain absolute machine paths.
+# Cheap insurance.
+.project
+.classpath
+.factorypath
+.settings/
+
+# Staged dependency jars for IntelliSense. Generated, machine-specific, and large.
+.ide-libs/
+
 # For Mac users
 .DS_Store
 

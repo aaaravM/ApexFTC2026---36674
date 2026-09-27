@@ -45,8 +45,15 @@ public enum BallType {
     /** Blue 3.6 in, 41 g. Only the BLUE alliance may score it. */
     NECTAR_BLUE(3.6, 0.041, 0.42, 0.0),
 
-    /** Nothing in the hopper, or a colour we could not classify. */
-    NONE(0, 0, 0.50, 0.0);
+    /**
+     * Nothing in the hopper, or a colour we could not classify.
+     *
+     * <p>Efficiency is 0 rather than POLLEN's 0.50 <b>on purpose</b>. If an unclassified ball
+     * inherited POLLEN's calibration, a misread NECTAR would be fired with POLLEN's RPM and miss by
+     * roughly 8 inches -- and it would look like a ballistics bug, not a sensor bug. A 0 makes
+     * {@link #canFire()} false, so the shot is refused instead of taken badly.
+     */
+    NONE(0, 0, 0.0, 0.0);
 
     /** Ball diameter, inches. Used by the vision ball tracker to estimate distance. */
     public final double diameterIn;
@@ -71,13 +78,19 @@ public enum BallType {
     /**
      * Air-drag correction, as a fractional speed increase per inch of range. <b>TUNE ME.</b>
      *
-     * <p>The solver uses drag-free projectile physics, which will always fall SHORT on a light
-     * ball -- and POLLEN at 25 g is very light for its size, so drag is not negligible. Leave
-     * this at 0 until the pure physics is aiming consistently, then raise it until long shots
-     * stop dropping low. A value of 0.0008 adds 8% speed at 100 inches.
+     * <p>The solver uses drag-free projectile physics, which always falls SHORT on a light ball --
+     * and drag here is not a rounding error. Both BIOBUZZ balls have a terminal velocity of only
+     * about 14 m/s, which means the drag-free range prediction is roughly <b>2x optimistic</b>.
+     * Leave this at 0 until the pure physics aims consistently, then raise it until long shots stop
+     * dropping low. A value of 0.0008 adds 8% speed at 100 inches.
      *
-     * <p>Keep it per-ball-type: NECTAR's higher mass-to-area ratio means it is less affected by
-     * drag than POLLEN, so NECTAR's value should end up SMALLER.
+     * <p><b>Tune ONE value and use it for both ball types.</b> An earlier version of this comment
+     * reasoned that NECTAR's higher mass-to-area ratio would make it less drag-affected, so its
+     * value should end up smaller. Running the numbers, that is wrong in practice: the ballistic
+     * coefficients are 6.293 kg/m^2 for POLLEN and 6.243 for NECTAR -- a <b>0.8% difference</b>.
+     * NECTAR is both heavier and larger, and the two effects very nearly cancel. Tuning two
+     * separate drag values would just be fitting noise, and worse, it would let a drag number
+     * quietly absorb an error that actually belongs in {@link #transferEfficiency}.
      */
     public final double dragPerInch;
 
@@ -90,6 +103,14 @@ public enum BallType {
 
     public boolean isNectar() {
         return this == NECTAR_RED || this == NECTAR_BLUE;
+    }
+
+    /**
+     * False for {@link #NONE}. Gate the feeder on this: a ball we could not identify has no valid
+     * RPM, so firing it is guaranteed to miss and will be blamed on the ballistics.
+     */
+    public boolean canFire() {
+        return transferEfficiency > 1e-6;
     }
 
     /**

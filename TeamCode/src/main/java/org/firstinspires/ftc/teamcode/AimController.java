@@ -77,7 +77,9 @@ public class AimController {
         if (!aimingEnabled) {
             turret.setTargetAngleRad(0);
             turret.update(odometry.getHeadingVelRad());
-            shooter.stop();
+            // idle(), not stop(): setVelocity(0) actively brakes the wheel despite FLOAT, throwing
+            // away stored energy we would only have to pay to rebuild. Idle current is 0.25 A.
+            shooter.idle();
             solution = new Ballistics.Solution();
             solution.failReason = "auto-aim off";
             return;
@@ -128,9 +130,10 @@ public class AimController {
         turret.update(odometry.getHeadingVelRad());
     }
 
-    /** All four gates. Feed a ball only when this is true. */
+    /** All five gates. Feed a ball only when this is true. */
     public boolean isReadyToFire() {
         return aimingEnabled
+                && assumedBall.canFire()
                 && solution.valid
                 && turret.isOnTarget()
                 && shooter.isAtSpeed()
@@ -140,6 +143,9 @@ public class AimController {
     /** One short line explaining what is blocking the shot, for the driver's telemetry. */
     public String getReadinessText() {
         if (!aimingEnabled) return "AIM OFF";
+        // An unidentified ball has no valid RPM, so firing it is a guaranteed miss that will get
+        // blamed on the ballistics rather than on the colour sensor.
+        if (!assumedBall.canFire()) return "BALL NOT IDENTIFIED -- will not fire";
         if (!hiveTracker.hasTarget()) return "NO TARGET";
         if (!solution.valid) return "NO SOLUTION: " + solution.failReason;
         if (!turret.isOnTarget()) return String.format("TURRET %+.1f deg", turret.getErrorDeg());

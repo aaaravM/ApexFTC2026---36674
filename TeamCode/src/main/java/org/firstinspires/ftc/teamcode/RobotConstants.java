@@ -115,8 +115,18 @@ public final class RobotConstants {
          *
          * <p>If true, {@link org.firstinspires.ftc.teamcode.subsystems.Odometry} rotates the
          * velocity by the current heading to produce field velocity.
+         *
+         * <p><b>Now set to false, on third-party evidence.</b> Pedro Pathing's own
+         * {@code PinpointLocalizer} feeds the Pinpoint's {@code getVelX()}/{@code getVelY()}
+         * straight into its <i>field-frame</i> velocity slot with no rotation applied. Pedro is a
+         * widely used, actively maintained library whose path following would visibly break if that
+         * were wrong, so it is strong evidence the Pinpoint reports field-relative velocity.
+         *
+         * <p>Still run {@code T3_VelocityFrameTest} to confirm it on your robot. Third-party
+         * evidence is not the same as a measurement, this is load-bearing for the turret, and the
+         * test takes twenty seconds.
          */
-        public static final boolean VELOCITY_IS_ROBOT_RELATIVE = true;
+        public static final boolean VELOCITY_IS_ROBOT_RELATIVE = false;
 
         /**
          * How long we keep pose history, for matching a camera frame to the pose at the moment
@@ -144,6 +154,34 @@ public final class RobotConstants {
         /** P gain for the "snap to heading" helper, in power per radian of error. TUNE ME. */
         public static final double HEADING_LOCK_KP = 1.2;
         public static final double HEADING_LOCK_MAX = 0.5;
+
+        // ---- Drivetrain geometry, from the actual hardware ----------------------------------
+        // 4x goBILDA 5203-2402-0019 (19.2:1, 312 RPM) on goBILDA 104 mm mecanum wheels.
+
+        /** Encoder counts per revolution of a drive wheel. goBILDA's published figure for 19.2:1. */
+        public static final double TICKS_PER_REV = 537.7;
+
+        /**
+         * Wheel diameter, inches. <b>104 mm is 4.094488 in, not 4.0.</b> Using 4.0 makes every
+         * distance read 2.4% short, which is exactly the kind of error that looks like bad tuning.
+         *
+         * <p>Expect the effective rolling diameter under a loaded robot to be 1-3 mm UNDER nominal
+         * with soft rollers, so verify against a measured 120 in push test rather than trusting
+         * the nominal number.
+         */
+        public static final double WHEEL_DIAMETER_IN = 4.094488;
+
+        public static final double WHEEL_CIRCUMFERENCE_IN = Math.PI * WHEEL_DIAMETER_IN; // 12.863
+        public static final double TICKS_PER_INCH = TICKS_PER_REV / WHEEL_CIRCUMFERENCE_IN; // 41.80
+        public static final double INCHES_PER_TICK = WHEEL_CIRCUMFERENCE_IN / TICKS_PER_REV; // 0.02392
+
+        /**
+         * Theoretical free speed, in/s, at 312 RPM. <b>An upper bound and a sanity check only</b> --
+         * a real robot reaches roughly 80-85% of it. Expect to measure 53-58 in/s forward and
+         * 42-46 in/s strafing. Pedro Pathing's translational constants must be MEASURED by its
+         * tuners, never computed from this.
+         */
+        public static final double FREE_SPEED_IN_PER_SEC = 66.889;
     }
 
     // ==========================================================================================
@@ -174,37 +212,122 @@ public final class RobotConstants {
         /** Flywheel outside diameter in inches, INCLUDING any compliant wheel tread. TUNE ME. */
         public static final double FLYWHEEL_DIAMETER_IN = 4.0;
 
-        /** Set false if you only have one flywheel motor. */
-        public static final boolean USE_DUAL_FLYWHEEL = true;
+        /**
+         * FALSE: this team has exactly ONE shooter motor (goBILDA 5203-2402-0001, 1:1, 6000 RPM).
+         *
+         * <p>Leaving this true throws {@code IllegalArgumentException} out of Shooter's constructor
+         * at OpMode <b>init</b> -- the OpMode dies before START, which reads like a config problem
+         * rather than a constants problem.
+         */
+        public static final boolean USE_DUAL_FLYWHEEL = false;
 
         /**
-         * Motor encoder counts per revolution of the FLYWHEEL (not the motor, if geared).
-         * goBILDA 5202/5203 bare motor = 28 counts/rev at the motor shaft.
-         * A 1:1 direct-drive bare 6000 rpm motor is therefore 28. If you belt it 1:2 to speed
-         * the wheel up, divide by 2. TUNE ME.
+         * Encoder counts per revolution of the flywheel. <b>28.0 is correct as written</b> for this
+         * team's motor.
+         *
+         * <p>Every goBILDA Yellow Jacket puts its encoder on the <b>bare motor shaft, before the
+         * gearbox</b>, at 28 counts/rev. goBILDA's published "PPR at the Output Shaft" is just
+         * {@code 28 x exact gear ratio}. The shooter is 1:1, so output PPR = 28. If you ever belt
+         * the flywheel to a different speed, divide by the belt ratio.
+         *
+         * <p>A useful consequence: every 5203, whatever its gearbox, free-runs its encoder at about
+         * <b>2800 ticks/sec</b>, because the motor shaft always turns at ~6000 RPM. The Control Hub
+         * reports velocity in a signed 16-bit field (+/-32767 ticks/sec), so there is 11.7x
+         * headroom -- closed-loop RPM control on a 6000 RPM motor is perfectly safe. The real
+         * limitation is the opposite: 28 counts/rev is the <b>coarsest velocity feedback on the
+         * robot</b>, which is why {@link #RPM_TOLERANCE} is generous and why D is useless here.
          */
         public static final double FLYWHEEL_TICKS_PER_REV = 28.0;
 
-        /** Velocity PIDF for the flywheel. F dominates; start with F and add a little P. TUNE ME. */
-        public static final double FLYWHEEL_P = 50.0;
+        /**
+         * Velocity PIDF for the flywheel.
+         *
+         * <p>F and P live on the same "32767 = full output" scale, so F is derived, not guessed:
+         * {@code F = 32767 / maxTicksPerSecond = 32767 / 2800 = 11.70}. P belongs in the
+         * {@code 0.1F .. F/3} band, so ~1.2 to ~3.9.
+         *
+         * <p>Leave <b>I at 0</b>: spin-up takes over a second on a real flywheel and any integral
+         * term winds up hard and overshoots. Leave <b>D at 0</b>: at 28 counts/rev the velocity
+         * signal is quantised coarsely enough that differentiating it produces noise, not damping.
+         *
+         * <p>Before overriding these at all, print {@code getPIDFCoefficients(RUN_USING_ENCODER)} --
+         * the SDK ships tuned PIDF defaults for goBILDA motor types and they may beat these.
+         */
+        public static final double FLYWHEEL_P = 1.17;   // 0.1 * F
         public static final double FLYWHEEL_I = 0.0;
         public static final double FLYWHEEL_D = 0.0;
-        public static final double FLYWHEEL_F = 14.0;
+        public static final double FLYWHEEL_F = 11.70;  // 32767 / 2800
 
-        /** Flywheel is "ready" when within this many RPM of target for READY_STABLE_SEC. */
-        public static final double RPM_TOLERANCE = 60.0;
-        public static final double READY_STABLE_SEC = 0.12;
+        /**
+         * Flywheel is "ready" when within this many RPM of target for READY_STABLE_SEC.
+         *
+         * <p>There is a genuine tension in this number and it is worth knowing about:
+         * <ul>
+         *   <li><b>Accuracy</b> wants it tight. Range changes about <b>0.117 in per RPM</b>, so
+         *       40 RPM of error is ~4.7 in of range -- roughly half a CELL opening.</li>
+         *   <li><b>Measurability</b> wants it loose. With only 28 counts/rev the Hub's velocity
+         *       estimate is quantised in steps that can approach 100 RPM over a short sample
+         *       window, so too tight a tolerance makes {@code isAtSpeed()} chatter or never latch
+         *       at all -- and a gate that never closes is worse than a loose one.</li>
+         * </ul>
+         * 100 splits the difference. {@link org.firstinspires.ftc.teamcode.subsystems.Shooter}
+         * averages several velocity samples to claw back some of the quantisation, which is what
+         * makes a number this tight usable. Confirm on the real robot: if READY flickers, raise it.
+         */
+        public static final double RPM_TOLERANCE = 100.0;
+        public static final double READY_STABLE_SEC = 0.15;
 
-        /** Safety clamp: never command more than this. Set to your measured free speed. TUNE ME. */
+        /** Number of velocity samples to average, to fight 28-counts/rev quantisation. */
+        public static final int RPM_SAMPLE_COUNT = 5;
+
+        /**
+         * Safety clamp. Free speed is 6000 RPM, but the whole game lives in roughly
+         * <b>1600-2900 RPM</b> on a 4 in wheel -- a 14 ft shot needs only about 7.3 m/s of ball
+         * exit speed. Keeping the clamp well above the useful band is fine; it exists to catch a
+         * runaway ballistics solution, not to define the operating point.
+         */
         public static final double MAX_FLYWHEEL_RPM = 5000.0;
+
+        /**
+         * Ramp the commanded RPM rather than stepping it. A step draws close to the motor's 9.2 A
+         * stall current for over a second, and doing that while four drive motors are accelerating
+         * is how you brown out the Control Hub mid-match. 0 disables ramping.
+         */
+        public static final double RPM_RAMP_PER_SEC = 4000.0;
     }
 
     // ==========================================================================================
     // 5. TURRET
     // ==========================================================================================
     public static final class Turret {
-        /** Encoder ticks per radian of turret rotation. TUNE ME: {@code T7_TurretTuner}. */
-        public static final double TICKS_PER_RAD = 1200.0;
+        /**
+         * Encoder ticks per radian of turret rotation.
+         *
+         * <p>The turret motor is a goBILDA 5203-2402-0019 (19.2:1, 312 RPM), published as
+         * <b>537.7 PPR</b> at its output shaft. With an external reduction of {@code G} between
+         * that output shaft and turret rotation:
+         * <pre>
+         *   TICKS_PER_RAD = 537.7 * G / (2*pi) = 85.5777 * G
+         * </pre>
+         * Worked values: G=1 -> 85.6 (unusably coarse, 1.5 ticks/deg), <b>G=5 -> 427.9</b>,
+         * G=6.25 -> 534.9, G=8 -> 684.6, G=10 -> 855.8, G=20 -> 1711.6 (too slow, 94 deg/s).
+         *
+         * <p>Free slew speed is {@code 1872 / G} deg/s, so G in the <b>5 to 8</b> band gives
+         * 234-374 deg/s and 122-194 kg.cm of holding torque, which is the right place to be.
+         * <b>Direct drive (G=1) is not viable.</b>
+         *
+         * <p>The 427.9 below assumes G=5. <b>Measure it rather than trusting a nameplate ratio:</b>
+         * zero the encoder, rotate the turret exactly 90 degrees against a protractor, read the
+         * ticks, and compute {@code ticks / (pi/2)}. Measuring directly folds in belt slop and any
+         * miscounted teeth, and removes one place to make an arithmetic error.
+         *
+         * <p>Note the previous placeholder here was 1200.0, which silently implied G=14.02 -- almost
+         * certainly not what you built. Also be aware the real accuracy limit is <b>backlash</b>,
+         * not encoder resolution, and each extra gear stage adds its own; prefer ONE clean external
+         * reduction over two. At G=5, full +/-170 deg of travel is 4.7 turns of the motor output
+         * shaft, so route the turret wiring with a service loop or it will tear out.
+         */
+        public static final double TICKS_PER_RAD = 427.889;   // 85.5777 * G, with G = 5
 
         /** Mechanical travel limits in radians, relative to "straight forward" = 0. */
         public static final double MIN_ANGLE_RAD = Math.toRadians(-170);
