@@ -99,6 +99,29 @@ laptops must be off the Robot Controller network during match play. Inspectors l
 | `offline` | Replug the cable; try a different cable — many USB-C cables are charge-only |
 | Still nothing | `adb kill-server`, unplug, power-cycle the Hub, plug in, `adb devices` |
 
+### First deploy only: `INSTALL_FAILED_UPDATE_INCOMPATIBLE`
+
+```
+INSTALL_FAILED_UPDATE_INCOMPATIBLE: Package com.qualcomm.ftcrobotcontroller
+signatures do not match the previously installed version; ignoring!
+```
+
+Expected once, and it means the deploy reached the robot. `build.common.gradle` sets
+`applicationId 'com.qualcomm.ftcrobotcontroller'` — the same package as the factory Robot Controller
+app, because your build *is* the Robot Controller. The Hub's copy is signed with REV/FIRST's release
+key and yours with your machine's debug key, and Android refuses a cross-signature update.
+
+```cmd
+adb pull /sdcard/FIRST C:\Users\MUTTA\Desktop\hub-backup   :: back up OnBot code + configs
+adb uninstall com.qualcomm.ftcrobotcontroller
+gradlew :TeamCode:installDebug
+```
+
+OnBot Java sources (`/sdcard/FIRST/java/`) and robot configurations (`/sdcard/FIRST/settings/`) live
+in Hub storage, not app storage, so they survive the uninstall — the backup is cheap insurance, not a
+necessity. Afterwards, confirm the **Driver Station app is also 12.0**, since RC and DS versions must
+match.
+
 ---
 
 ## 3. Robot Configuration, device by device

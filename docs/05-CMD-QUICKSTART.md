@@ -205,6 +205,87 @@ programming laptops must be off the robot's network during a match, and inspecto
 
 ---
 
+### `INSTALL_FAILED_UPDATE_INCOMPATIBLE` — the one-time hurdle everyone hits
+
+If the deploy gets as far as saying
+
+```
+Installing APK 'TeamCode-debug.apk' on 'Control Hub v1.0 - 7.1.2'
+```
+
+and then fails with
+
+```
+INSTALL_FAILED_UPDATE_INCOMPATIBLE: Package com.qualcomm.ftcrobotcontroller
+signatures do not match the previously installed version; ignoring!
+```
+
+**Good news first: your cable, your Hub and your code are all fine.** It reached the robot and tried
+to install. This is not a bug.
+
+**Why it happens.** Every Android app is digitally signed, and Android refuses to *update* an app if
+the new signature differs from the installed one — that is a security feature stopping someone
+replacing an app with a lookalike. Your Control Hub came with the Robot Controller app already
+installed, signed by REV/FIRST with their private key. Your build is signed with the automatic debug
+key on your laptop. Your project uses the **same package name** (`com.qualcomm.ftcrobotcontroller`,
+in `build.common.gradle`) because it *is* the Robot Controller app — so Android sees an update with
+the wrong key and refuses.
+
+**The fix is to remove the factory app first.** Every team that moves from OnBot Java to a real
+project does this exactly once.
+
+#### Step 1 — back up what is on the Hub (2 minutes, do not skip)
+
+Your OnBot Java programs and your saved robot configurations live in the Hub's storage, separate from
+the app, so they *should* survive. Back them up anyway — it costs nothing:
+
+```cmd
+adb pull /sdcard/FIRST C:\Users\MUTTA\Desktop\hub-backup
+```
+
+That copies your OnBot Java source files **and** your saved robot configurations onto your Desktop.
+
+> Your `MecanumTeleOp` and `IntakeFlywheelTest` are already safe in this repository regardless —
+> they were committed as `MecanumTeleOp.java` and `IntakeFlywheelTest.java`. So even a worst case
+> loses nothing.
+
+#### Step 2 — remove the factory app
+
+```cmd
+adb uninstall com.qualcomm.ftcrobotcontroller
+```
+
+You should see `Success`. The Driver Station will lose connection — expected, there is no Robot
+Controller app running for a moment.
+
+#### Step 3 — install yours
+
+```cmd
+gradlew :TeamCode:installDebug
+```
+
+Now it works, and **you never have to do this again** — from here on every deploy is just this one
+command, because your builds all share the same debug key.
+
+#### What this does and does not change
+
+| | |
+|---|---|
+| The Robot Controller app | Replaced with your build. This is the point |
+| Your OnBot Java source | Survives (it is in `/sdcard/FIRST/java/`, not in the app) |
+| Your robot configurations | Survive (they are in `/sdcard/FIRST/settings/`) |
+| The Hub's operating system | Untouched. You are only replacing one app |
+| Going back | Possible any time — the official APK is on the [SDK releases page](https://github.com/FIRST-Tech-Challenge/FtcRobotController/releases) |
+
+#### One thing to check afterwards
+
+Your **Driver Station app version must match** the Robot Controller version. You are now running
+SDK **12.0**, so the Driver Station needs to be 12.0 too. If it complains about a version mismatch
+after this, update the Driver Station app from the Play Store, or sideload the same-version DS APK
+from that releases page.
+
+---
+
 ## Step 4 — Tell the robot what is plugged into it
 
 The code looks for motors **by name**. You type those names into the Driver Station. If a name does
