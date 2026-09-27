@@ -25,10 +25,19 @@
   "java.import.gradle.enabled": false,
   "java.import.maven.enabled": false,
 
-  // Tell it where our source actually lives.
+  // Tell it where OUR source lives.
+  //
+  // FtcRobotController/src/main/java is deliberately NOT listed. Three files in there
+  // (FtcRobotControllerActivity, PermissionValidatorWrapper, ConceptSoundsASJava) reference `R`,
+  // Android's generated resource class. `R` does not exist as a file -- the build generates it from
+  // res/ into build/ -- so the editor cannot resolve it and reports errors in code we never edit.
+  //
+  // Leaving it out costs nothing real: Gradle still compiles that module, the SDK's classes still
+  // resolve from the jars in .ide-libs (so Ctrl-click into DcMotorEx still works), and the sample
+  // OpModes are still perfectly readable as files. They just are not type-checked, which is correct
+  // for reference material that is not ours.
   "java.project.sourcePaths": [
-    "TeamCode/src/main/java",
-    "FtcRobotController/src/main/java"
+    "TeamCode/src/main/java"
   ],
 
   // Dependency jars, staged into the workspace by the ideLibs Gradle task. These paths must be
