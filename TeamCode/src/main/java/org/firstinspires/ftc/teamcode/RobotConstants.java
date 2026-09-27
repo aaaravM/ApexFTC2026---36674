@@ -49,11 +49,21 @@ public final class RobotConstants {
         //    internal IMU and you will get bus contention / dropped reads.
         public static final String PINPOINT      = "pinpoint";
 
-        // -- Shooter / turret -- (not yet in the team's configuration; add these as you build)
-        public static final String FLYWHEEL      = "flywheel";
+        // -- Shooter / turret --
+        /**
+         * NOTE THE CAPITAL F. The Robot Configuration has this device as "Flywheel", and
+         * {@code hardwareMap.get} is <b>case-sensitive</b> -- asking for "flywheel" throws
+         * {@code IllegalArgumentException} at init with a message that just says the device is
+         * missing, which sends you looking at wiring rather than at spelling.
+         *
+         * <p>This one is on the <b>Expansion Hub</b>, not the Control Hub. That is fine, but it
+         * means its reads travel over RS485 and cost slightly more latency than a Control Hub port,
+         * which is worth knowing when you start timing shots.
+         */
+        public static final String FLYWHEEL      = "Flywheel";
         public static final String FLYWHEEL_2    = "flywheel_2";   // set USE_DUAL_FLYWHEEL=false if absent
-        public static final String TURRET        = "turret";
-        public static final String FEEDER        = "feeder";       // servo or CR servo that pushes a ball in
+        public static final String TURRET        = "turret";       // not configured yet
+        public static final String FEEDER        = "feeder";       // not configured yet
 
         // -- Intake / sorting -- (existing config names)
         public static final String INTAKE        = "intakemain";
