@@ -67,7 +67,7 @@ public final class PedroConstants {
         return new Follower(
                 buildLocalizer(hardwareMap),   // Localizer FIRST -- see class javadoc
                 buildDrivetrain(hardwareMap),
-                new Foresight(buildForesightConfig()));
+                new Foresight(FollowerTuning.build()));
     }
 
     // ==========================================================================================
@@ -162,53 +162,8 @@ public final class PedroConstants {
     // Algorithm -- Foresight
     // ==========================================================================================
 
-    /**
-     * <b>ForesightConfig has TWELVE required fields and no defaults.</b>
-     *
-     * <p>This is the nastiest failure mode in the whole v3 setup: a config missing any required
-     * field <b>compiles cleanly</b> and then throws
-     * {@code IllegalStateException("Config variable has not been set")} on the first
-     * {@code follower.update()}. The OpMode dies the instant you press START, and the message does
-     * not name the missing field. So fill every one with a placeholder from day one, then replace
-     * the placeholders with ForesightTuner's measurements.
-     *
-     * <p><b>ACTION REQUIRED after your first Gradle sync:</b> ctrl-click {@code ForesightConfig} and
-     * enumerate its fields, then set the ones not listed below. Four are named here because their
-     * v2-to-v3 renames are documented and load-bearing; the remaining ones are tuning gains whose
-     * exact field names should come from the class itself rather than from me guessing.
-     *
-     * <p>The renames that will trip you up, with the sign change:
-     * <table>
-     *   <tr><th>v2 name</th><th>v3 name</th></tr>
-     *   <tr><td>{@code xVelocity}</td><td>{@code maxAchievableForwardVelocity}</td></tr>
-     *   <tr><td>{@code yVelocity}</td><td>{@code maxAchievableStrafeVelocity}</td></tr>
-     *   <tr><td>{@code forwardZeroPowerAcceleration}</td><td>{@code naturalForwardDeceleration}</td></tr>
-     *   <tr><td>{@code lateralZeroPowerAcceleration}</td><td>{@code naturalStrafeDeceleration}</td></tr>
-     * </table>
-     * v2's zero-power accelerations were <b>negative</b> numbers. v3's natural decelerations are
-     * <b>positive magnitudes</b>, validated by {@code positive()}. Pasting a v2 number in throws
-     * {@code IllegalArgumentException} at construction -- which is the good case, because it fails
-     * loudly.
-     *
-     * <p><b>None of these numbers matter for teleop driving.</b> {@code follower.manual(...)} does
-     * not run the path-following algorithm, so you can drive with placeholders and tune later. They
-     * only become load-bearing for autonomous paths and for {@code ManualDrive.driveOrHold(...)}.
-     */
-    private static ForesightConfig buildForesightConfig() {
-        return new ForesightConfig(c -> {
-            // Measured by ForesightTuner. The placeholders are physics-derived upper-bound
-            // estimates: theoretical free speed on 104 mm wheels at 312 RPM is 66.9 in/s, and a
-            // real mecanum robot reaches roughly 80-85% of that forward and about 0.8x that
-            // sideways. Do not ship these -- measure them.
-            c.maxAchievableForwardVelocity.set(55.0);   // in/s, expect 53-58 measured
-            c.maxAchievableStrafeVelocity.set(44.0);    // in/s, expect 42-46 measured
-
-            // Positive magnitudes in v3, NOT the negative accelerations v2 used.
-            c.naturalForwardDeceleration.set(60.0);     // in/s^2, placeholder
-            c.naturalStrafeDeceleration.set(70.0);      // in/s^2, placeholder
-
-            // TODO after first Gradle sync: set the remaining required ForesightConfig fields.
-            // Leaving any unset throws IllegalStateException on the first follower.update().
-        });
-    }
+    // The Foresight tuning numbers live in FollowerTuning, which deliberately has no Android
+    // imports so it can be compiled and RUN on a laptop. That is how we verified that all 12
+    // required ForesightConfig fields are set and every validator accepts them -- so
+    // follower.update() cannot throw "Config variable has not been set". See that class.
 }
