@@ -501,15 +501,98 @@ explains why it will not turn.
 
 ---
 
-## The five commands, all in one place
+## Saving your work to GitHub
+
+Repo: <https://github.com/aaaravM/ApexFTC2026---36674>
+
+Git has a **staging area** between your files and a commit. `git commit` only saves what you have
+staged with `git add`. That is why a bare `git commit` says *"no changes added to commit"* — it is
+not an error, just nothing selected yet.
+
+**The three commands, every time you want to save work:**
+
+```cmd
+git add -A
+git commit -m "what you changed"
+git push
+```
+
+`git add -A` stages everything — changed, new and deleted files.
+
+**First push only**, to link your local branch to the remote:
+
+```cmd
+git push -u origin main
+```
+
+After that `git push` on its own is enough.
+
+### Signing in
+
+The first push opens a browser window to sign in to GitHub. If it instead asks for a password in the
+terminal, **your GitHub password will not work** — GitHub stopped accepting those for git in 2021.
+Use a **personal access token** as the password:
+
+> github.com → Settings → Developer settings → Personal access tokens → Tokens (classic) →
+> Generate new token → tick the **`repo`** scope
+
+### Useful checks
+
+```cmd
+git status            :: what changed and what is staged
+git log --oneline     :: your commit history, newest first
+git remote -v         :: where push and pull go
+```
+
+### If the push is rejected
+
+```
+! [rejected] main -> main (fetch first)
+```
+
+That means the GitHub repo already has commits yours do not — usually because it was created **with**
+a README. Since your local history is the real work:
+
+```cmd
+git push --force-with-lease origin main
+```
+
+`--force-with-lease` is the safe form of force-push: it refuses if someone else pushed something you
+have not seen, unlike plain `--force` which would overwrite it.
+
+### Two remotes, two purposes
+
+| Remote | Points at | Use |
+|---|---|---|
+| `origin` | your team's repo | `git push` — your work |
+| `upstream` | FIRST's SDK repo | `git fetch upstream --tags` — new SDK versions |
+
+Never push to `upstream`; you have no access to it anyway.
+
+---
+
+## Every command, all in one place
 
 ```cmd
 cd /d C:\Users\MUTTA\OneDrive\Desktop\FTC-2026
 
-gradlew :TeamCode:ideLibs              :: refresh editor, then Ctrl+Shift+P > Reload Window
+:: --- build and deploy ---
 gradlew :TeamCode:assembleDebug        :: build the app
 gradlew :TeamCode:installDebug         :: build AND send it to the robot
+gradlew :TeamCode:ideLibs              :: refresh editor, then Ctrl+Shift+P > Reload Window
 gradlew :TeamCode:tasks                :: list everything you can run
+
+:: --- save to GitHub ---
+git add -A
+git commit -m "what you changed"
+git push
+
+:: --- talk to the robot (adb needs its folder on PATH first, see above) ---
+adb devices                                      :: is the robot connected?
+adb push hub-backup\firstconfig-rewired.xml /sdcard/FIRST/firstconfig.xml
+adb pull /sdcard/FIRST/firstconfig.xml hub-backup\firstconfig.xml
+adb tcpip 5555                                   :: enable wireless (once, while on USB)
+adb connect 192.168.43.1:5555                    :: connect over the robot's wifi
 ```
 
 `::` starts a comment in Command Prompt — you do not need to type those parts.
