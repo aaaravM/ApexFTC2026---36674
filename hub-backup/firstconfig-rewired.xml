@@ -1,0 +1,48 @@
+<?xml version='1.0' encoding='UTF-8' standalone='yes' ?>
+<!--
+  Robot configuration after the 2026-10-11 rewire.
+
+  All seven motors and servos are complete, plus the Flywheel on Control Hub motor port 3.
+
+  THE PINPOINT IS NOT IN HERE ON PURPOSE. It moved off I2C bus 1 and the new bus number is
+  something only you can see, by looking at which I2C port on the Control Hub the cable is in -
+  they are physically labelled 0, 1, 2, 3. Rather than guess and have it silently fail to be found,
+  add that one entry on the Driver Station after pushing this file:
+
+      Configure Robot -> Control Hub -> I2C Bus <the number on the label>
+      -> goBILDA Pinpoint Odometry Computer -> name it exactly:  odomcomp
+
+  It must NOT be bus 0 - the built-in IMU is there, and sharing bus 0 causes intermittent dropped
+  reads that look like random odometry glitches.
+
+  Device NAMES are unchanged from before the rewire, which is why no Java code had to change -
+  hardwareMap looks devices up by name, never by port.
+-->
+<Robot type="FirstInspires-FTC">
+    <LynxUsbDevice name="Control Hub Portal" serialNumber="(embedded)" parentModuleAddress="173">
+
+        <!-- Expansion Hub: LEFT side of the drivetrain, plus the intake -->
+        <LynxModule name="Expansion Hub 2" port="2">
+            <goBILDA5202SeriesMotor  name="leftfront"  port="1" />
+            <goBILDA5202SeriesMotor  name="intakemain" port="2" />
+            <goBILDA5202SeriesMotor  name="leftback"   port="3" />
+            <ContinuousRotationServo name="leftintake" port="5" />
+        </LynxModule>
+
+        <!-- Control Hub: RIGHT side of the drivetrain, the shooter, and odometry -->
+        <LynxModule name="Control Hub" port="173">
+            <goBILDA5202SeriesMotor  name="rightback"   port="0" />
+            <goBILDA5202SeriesMotor  name="rightfront"  port="1" />
+            <goBILDA5202SeriesMotor  name="Flywheel"    port="3" />
+            <ContinuousRotationServo name="rightintake" port="1" />
+
+            <!-- Built-in IMU on bus 0. This is exactly why the Pinpoint cannot go on bus 0. -->
+            <ControlHubImuBHI260AP name="imu" port="0" bus="0" />
+
+            <!-- ADD ON THE DRIVER STATION (see the comment at the top of this file):
+                 <goBILDAPinpoint name="odomcomp" port="0" bus="?" />
+            -->
+        </LynxModule>
+
+    </LynxUsbDevice>
+</Robot>

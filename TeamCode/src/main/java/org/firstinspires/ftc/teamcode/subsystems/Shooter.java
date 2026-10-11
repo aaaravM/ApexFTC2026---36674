@@ -67,12 +67,18 @@ public class Shooter {
     public Shooter(HardwareMap hardwareMap) {
         primary = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.FLYWHEEL);
         configure(primary);
+        primary.setDirection(RobotConstants.Shoot.REVERSE_FLYWHEEL
+                ? DcMotorSimple.Direction.REVERSE
+                : DcMotorSimple.Direction.FORWARD);
 
         if (RobotConstants.Shoot.USE_DUAL_FLYWHEEL) {
             secondary = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.FLYWHEEL_2);
             configure(secondary);
-            // Opposed flywheels must spin opposite ways to throw the ball forward.
-            secondary.setDirection(DcMotorSimple.Direction.REVERSE);
+            // Opposed flywheels must counter-rotate to throw the ball forward, so this is always
+            // the opposite of whatever the primary ended up as.
+            secondary.setDirection(RobotConstants.Shoot.REVERSE_FLYWHEEL
+                    ? DcMotorSimple.Direction.FORWARD
+                    : DcMotorSimple.Direction.REVERSE);
         } else {
             secondary = null;
         }

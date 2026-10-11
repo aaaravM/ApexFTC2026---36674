@@ -4,6 +4,7 @@ import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
+import com.qualcomm.robotcore.hardware.DcMotorSimple;
 
 /**
  * The team's original intake + flywheel test, preserved as written so it is under version control.
@@ -49,6 +50,13 @@ public class IntakeFlywheelTest extends LinearOpMode {
         // Set brake mode for intake, but float (coast) mode for the flywheel
         intakeMain.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         flywheel.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+
+        // Added: the flywheel had no direction set, so it ran whichever way it happened to be
+        // wired -- which on this robot was backwards. Kept in sync with
+        // RobotConstants.Shoot.REVERSE_FLYWHEEL so this file and the tuner never disagree.
+        flywheel.setDirection(RobotConstants.Shoot.REVERSE_FLYWHEEL
+                ? DcMotorSimple.Direction.REVERSE
+                : DcMotorSimple.Direction.FORWARD);
 
         // Zero out servos on init
         leftIntake.setPower(0.0);

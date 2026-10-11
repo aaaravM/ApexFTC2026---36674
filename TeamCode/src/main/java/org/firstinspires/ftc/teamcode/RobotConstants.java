@@ -44,10 +44,21 @@ public final class RobotConstants {
         public static final String BACK_LEFT    = "leftback";
         public static final String BACK_RIGHT   = "rightback";
 
-        // -- Odometry: configure as "goBILDA Pinpoint Odometry Computer" on an I2C bus.
-        //    IMPORTANT: use I2C bus 1, 2 or 3 -- NOT bus 0. Bus 0 shares with the Control Hub's
-        //    internal IMU and you will get bus contention / dropped reads.
-        public static final String PINPOINT      = "pinpoint";
+        /**
+         * The goBILDA Pinpoint, as it is ACTUALLY named in the team's robot configuration.
+         *
+         * <p><b>It is "odomcomp", not "pinpoint".</b> Read straight out of the Hub's own
+         * {@code /sdcard/FIRST/firstconfig.xml}:
+         * <pre>&lt;goBILDAPinpoint name="odomcomp" port="0" bus="1" /&gt;</pre>
+         * An earlier version of this file guessed "pinpoint", which would have thrown at init in
+         * every odometry OpMode with a message saying the device was missing -- sending you to look
+         * at the I2C cable instead of at a string.
+         *
+         * <p>Good news from the same file: it is already on <b>bus 1</b>, which is correct. Bus 0 is
+         * taken by {@code ControlHubImuBHI260AP name="imu"} -- the Control Hub's built-in IMU -- which
+         * is exactly why the Pinpoint must not go there.
+         */
+        public static final String PINPOINT      = "odomcomp";
 
         // -- Shooter / turret --
         /**
@@ -246,6 +257,21 @@ public final class RobotConstants {
          * rather than a constants problem.
          */
         public static final boolean USE_DUAL_FLYWHEEL = false;
+
+        /**
+         * Which way the flywheel spins. Flip this if the ball is thrown the wrong way.
+         *
+         * <p>Nothing was setting a direction on the flywheel before, so it ran whichever way the
+         * motor happened to be wired -- and on this robot that was backwards.
+         *
+         * <p>Change it <b>here</b>, not by flipping signs at call sites. The shooter is commanded by
+         * RPM and {@link #MAX_FLYWHEEL_RPM} clamps at 0 on the low end, so a negative "fix" applied
+         * somewhere else would clamp straight back to zero and look like a dead motor.
+         *
+         * <p>If you add a second flywheel later, it is driven to the OPPOSITE direction
+         * automatically -- opposed wheels have to counter-rotate to throw the ball forward.
+         */
+        public static final boolean REVERSE_FLYWHEEL = true;
 
         /**
          * Encoder counts per revolution of the flywheel. <b>28.0 is correct as written</b> for this
