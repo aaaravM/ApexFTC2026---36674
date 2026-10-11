@@ -42,11 +42,13 @@ public class MecanumTeleOp extends LinearOpMode {
         rightIntake = hardwareMap.get(CRServo.class, "rightintake");
         leftIntake  = hardwareMap.get(CRServo.class, "leftintake");
 
-        // Drive motor directions
-        leftFront.setDirection(DcMotorSimple.Direction.REVERSE);
-        leftBack.setDirection(DcMotorSimple.Direction.REVERSE);
-        rightFront.setDirection(DcMotorSimple.Direction.FORWARD);
-        rightBack.setDirection(DcMotorSimple.Direction.FORWARD);
+        // Drive motor directions. Changed from hardcoded to reading RobotConstants.Drive, so this
+        // fallback OpMode cannot drift out of sync with the one you normally drive. After the
+        // 2026-10-11 rewire all four were inverted.
+        leftFront.setDirection(dir(RobotConstants.Drive.REVERSE_FRONT_LEFT));
+        leftBack.setDirection(dir(RobotConstants.Drive.REVERSE_BACK_LEFT));
+        rightFront.setDirection(dir(RobotConstants.Drive.REVERSE_FRONT_RIGHT));
+        rightBack.setDirection(dir(RobotConstants.Drive.REVERSE_BACK_RIGHT));
 
         // Servo directions
         leftIntake.setDirection(CRServo.Direction.FORWARD);
@@ -96,5 +98,10 @@ public class MecanumTeleOp extends LinearOpMode {
             telemetry.addData("Servo Power", leftIntake.getPower());
             telemetry.update();
         }
+    }
+
+    /** Boolean "is reversed" from RobotConstants to the SDK's Direction enum. */
+    private static DcMotorSimple.Direction dir(boolean reversed) {
+        return reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD;
     }
 }

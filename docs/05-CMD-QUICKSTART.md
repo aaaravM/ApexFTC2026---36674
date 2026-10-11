@@ -273,7 +273,7 @@ command, because your builds all share the same debug key.
 |---|---|
 | The Robot Controller app | Replaced with your build. This is the point |
 | Your OnBot Java source | Survives (it is in `/sdcard/FIRST/java/`, not in the app) |
-| Your robot configurations | Survive (they are in `/sdcard/FIRST/settings/`) |
+| Your robot configurations | Survive (they are in `/sdcard/FIRST/firstconfig.xml`) |
 | The Hub's operating system | Untouched. You are only replacing one app |
 | Going back | Possible any time — the official APK is on the [SDK releases page](https://github.com/FIRST-Tech-Challenge/FtcRobotController/releases) |
 
@@ -287,6 +287,44 @@ from that releases page.
 ---
 
 ## Step 4 — Tell the robot what is plugged into it
+
+**Almost all of this is already done.** Your Hub's own configuration file was read out of the backup,
+and it already contains everything except the Limelight:
+
+```xml
+<LynxModule name="Expansion Hub 2" port="2">
+    <goBILDA5202SeriesMotor name="intakemain" port="0" />
+    <goBILDA5202SeriesMotor name="Flywheel"   port="1" />
+</LynxModule>
+<LynxModule name="Control Hub" port="173">
+    <goBILDA5202SeriesMotor  name="rightfront" port="0" />
+    <goBILDA5202SeriesMotor  name="leftfront"  port="1" />
+    <goBILDA5202SeriesMotor  name="rightback"  port="2" />
+    <goBILDA5202SeriesMotor  name="leftback"   port="3" />
+    <ContinuousRotationServo name="rightintake" port="0" />
+    <ContinuousRotationServo name="leftintake"  port="1" />
+    <ControlHubImuBHI260AP   name="imu"  port="0" bus="0" />
+    <goBILDAPinpoint         name="odomcomp" port="0" bus="1" />
+</LynxModule>
+```
+
+Three things worth noticing:
+
+- **Your Pinpoint is called `odomcomp`, not `pinpoint`.** The code has been corrected to match. Names
+  are case-sensitive and must match exactly, or the program crashes at INIT saying the device is
+  missing — and you would go looking at the I2C cable instead of at a word.
+- **It is already on bus 1, which is right.** Bus 0 is taken by `imu`, the Control Hub's built-in
+  IMU — which is precisely why the Pinpoint must not be there.
+- **Everything else already matches** what the code expects. Motors, servos, types — all correct,
+  and all using the goBILDA motor type rather than generic "Motor".
+
+**So the only thing you need to add is the Limelight** — skip to "The Limelight camera" below.
+
+The rest of this section is kept as reference, for when you add the turret and shooter parts, or set
+up a second robot.
+
+<details>
+<summary>Full configuration walkthrough (reference)</summary>
 
 The code looks for motors **by name**. You type those names into the Driver Station. If a name does
 not match, the program crashes the moment you press INIT with a message saying the device is missing.
@@ -302,14 +340,17 @@ You will see **Control Hub**. If your Expansion Hub does not appear underneath i
 
 ### Control Hub → Motors
 
-Tap **Motors**. Set each port:
+Tap **Motors**. Set each port (this is the order your robot actually uses):
 
 | Port | Type to choose | Name to type |
 |---|---|---|
-| 0 | goBILDA 5202/5203 series | `leftfront` |
-| 1 | goBILDA 5202/5203 series | `rightfront` |
-| 2 | goBILDA 5202/5203 series | `leftback` |
-| 3 | goBILDA 5202/5203 series | `rightback` |
+| 0 | goBILDA 5202/5203 series | `rightfront` |
+| 1 | goBILDA 5202/5203 series | `leftfront` |
+| 2 | goBILDA 5202/5203 series | `rightback` |
+| 3 | goBILDA 5202/5203 series | `leftback` |
+
+The port numbers do not matter to the code — it finds motors by name — but matching your existing
+wiring means you do not have to rewire anything.
 
 ⚠️ **Choose the goBILDA type, not plain "Motor".** Plain "Motor" has the wrong numbers built into it
 for how many encoder ticks make one wheel turn, which quietly breaks speed control later. There is no
@@ -321,7 +362,9 @@ Go back and tap **I2C Bus 1**.
 
 | Type to choose | Name to type |
 |---|---|
-| goBILDA Pinpoint Odometry Computer | `pinpoint` |
+| goBILDA Pinpoint Odometry Computer | `odomcomp` |
+
+(Already present on your robot. `odomcomp` is the name you chose; the code matches it.)
 
 ⚠️ **Use Bus 1, 2, or 3 — never Bus 0.** Bus 0 is already used by a sensor inside the Control Hub,
 and sharing it causes random glitches that look like broken code.
@@ -378,6 +421,8 @@ common half-hour time-wasters in FTC.
 `turret`, `feeder`, `ball_color`, `Webcam 2` — these are in the code for parts you have not built
 yet. Only the `TeleOp Main` program needs them, and it is turned off. Everything below works without
 them.
+
+</details>
 
 ---
 

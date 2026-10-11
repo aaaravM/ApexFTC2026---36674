@@ -176,11 +176,26 @@ public final class RobotConstants {
     // 3. DRIVETRAIN
     // ==========================================================================================
     public static final class Drive {
-        /** Flip these if a wheel spins the wrong way on the very first test. */
-        public static final boolean REVERSE_FRONT_LEFT  = true;
-        public static final boolean REVERSE_BACK_LEFT   = true;
-        public static final boolean REVERSE_FRONT_RIGHT = false;
-        public static final boolean REVERSE_BACK_RIGHT  = false;
+        /**
+         * Flip these if a wheel spins the wrong way.
+         *
+         * <p><b>All four were inverted after the 2026-10-11 rewire</b> -- pushing the stick forward
+         * drove the robot backward, cleanly, with no veer. A clean whole-robot inversion like that
+         * means every motor is backwards, not just one side, so all four flags flipped together.
+         *
+         * <p>Worth understanding why that single change fixes three symptoms at once: with every
+         * wheel reversed, the robot's response to forward, strafe <i>and</i> rotation are all
+         * inverted together. So if forward was backward, strafe and rotation were backward too --
+         * and flipping all four corrects all three in one go. (This is also why "reversed on the
+         * wrong side" can never explain a rotation-only fault.)
+         *
+         * <p>If instead ONE wheel is wrong, the robot veers or spins rather than cleanly reversing.
+         * In that case flip only that corner.
+         */
+        public static final boolean REVERSE_FRONT_LEFT  = false;
+        public static final boolean REVERSE_BACK_LEFT   = false;
+        public static final boolean REVERSE_FRONT_RIGHT = true;
+        public static final boolean REVERSE_BACK_RIGHT  = true;
 
         /** Deadband on the joysticks, to stop drift from a worn gamepad. */
         public static final double STICK_DEADBAND = 0.05;

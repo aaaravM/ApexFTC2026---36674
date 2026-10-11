@@ -68,6 +68,9 @@ captures/
 # Staged dependency jars for IntelliSense. Generated, machine-specific, and large.
 .ide-libs/
 
+# Claude Code's per-session working directory. Machine-specific, not project content.
+.claude/
+
 # For Mac users
 .DS_Store
 

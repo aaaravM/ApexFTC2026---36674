@@ -117,7 +117,8 @@ adb uninstall com.qualcomm.ftcrobotcontroller
 gradlew :TeamCode:installDebug
 ```
 
-OnBot Java sources (`/sdcard/FIRST/java/`) and robot configurations (`/sdcard/FIRST/settings/`) live
+OnBot Java sources (`/sdcard/FIRST/java/src/`) and the robot configuration
+(`/sdcard/FIRST/firstconfig.xml`) live
 in Hub storage, not app storage, so they survive the uninstall — the backup is cheap insurance, not a
 necessity. Afterwards, confirm the **Driver Station app is also 12.0**, since RC and DS versions must
 match.

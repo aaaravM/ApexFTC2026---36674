@@ -116,11 +116,13 @@ public class MecanumTeleOpOdometry extends LinearOpMode {
         rightIntake = hardwareMap.get(CRServo.class, "rightintake");
         leftIntake  = hardwareMap.get(CRServo.class, "leftintake");
 
-        // Drive motor directions -- unchanged
-        leftFront.setDirection(DcMotorSimple.Direction.REVERSE);
-        leftBack.setDirection(DcMotorSimple.Direction.REVERSE);
-        rightFront.setDirection(DcMotorSimple.Direction.FORWARD);
-        rightBack.setDirection(DcMotorSimple.Direction.FORWARD);
+        // Drive motor directions, read from RobotConstants.Drive so there is ONE place to change
+        // them. They used to be hardcoded here, which meant editing the constants file did nothing
+        // to the OpMode you were actually driving -- a genuinely confusing way to lose an evening.
+        leftFront.setDirection(dir(RobotConstants.Drive.REVERSE_FRONT_LEFT));
+        leftBack.setDirection(dir(RobotConstants.Drive.REVERSE_BACK_LEFT));
+        rightFront.setDirection(dir(RobotConstants.Drive.REVERSE_FRONT_RIGHT));
+        rightBack.setDirection(dir(RobotConstants.Drive.REVERSE_BACK_RIGHT));
 
         // Servo directions -- unchanged
         leftIntake.setDirection(CRServo.Direction.FORWARD);
@@ -291,5 +293,10 @@ public class MecanumTeleOpOdometry extends LinearOpMode {
 
     private static double deadband(double value) {
         return Math.abs(value) < STICK_DEADBAND ? 0.0 : value;
+    }
+
+    /** Boolean "is reversed" from RobotConstants to the SDK's Direction enum. */
+    private static DcMotorSimple.Direction dir(boolean reversed) {
+        return reversed ? DcMotorSimple.Direction.REVERSE : DcMotorSimple.Direction.FORWARD;
     }
 }
