@@ -452,17 +452,47 @@ public final class RobotConstants {
         public static final int WIDTH  = 640;
         public static final int HEIGHT = 480;
 
+        // ---- Lens intrinsics: Logitech C270 ---------------------------------------------------
+        //
+        // These are NOT guesses. They were read out of the SDK's own built-in calibration table,
+        // RobotCore-12.0.0.aar -> res/xml/builtinwebcamcalibrations.xml:
+        //
+        //   <!-- Logitech HD Webcam C270, Calibrated by Noah Andrews, 2019.03.13 using 3DF Zephyr -->
+        //   <Camera vid="Logitech" pid="0x0825">
+        //       <Calibration size="640 480"
+        //                    focalLength="822.317f, 822.317f"
+        //                    principalPoint="319.495f, 242.502f"
+        //                    distortionCoefficients="-0.0449369, 1.17277, 0, 0, -3.63244, 0, 0, 0" />
+        //   </Camera>
+        //
+        // An earlier version of this file had FX = 622.0, which was a placeholder and 24% low. Since
+        // the ball tracker computes distance as FX * ballDiameter / (2 * radiusPx), focal length is
+        // directly proportional to every distance it reports.
+
+        /** Reference resolution these intrinsics were calibrated at. */
+        public static final int CAL_WIDTH  = 640;
+        public static final int CAL_HEIGHT = 480;
+
+        public static final double FX = 822.317;
+        public static final double FY = 822.317;
+        public static final double CX = 319.495;
+        public static final double CY = 242.502;
+
         /**
-         * Lens intrinsics in pixels at the resolution above, used by the ball tracker to turn
-         * pixels into angles and distances. The SDK already knows these for common webcams for
-         * AprilTag purposes, but the ball tracker needs them explicitly.
-         * TUNE ME: {@code T8_CameraIntrinsics}, or read them off the SDK's built-in calibration
-         * for your camera in teamwebcamcalibrations.xml.
+         * Intrinsics scale LINEARLY with capture resolution, and forgetting that is an easy and
+         * invisible bug: using 640x480 numbers on a 320x240 image doubles every computed distance,
+         * and nothing errors.
+         *
+         * <p>So never read {@link #FX} directly in code that captures at some other resolution --
+         * call these instead, passing the resolution actually requested from the camera.
+         *
+         * <p>Worked example: at 320x240, FX becomes 411.16 and the principal point becomes
+         * (159.75, 121.25).
          */
-        public static final double FX = 622.0;
-        public static final double FY = 622.0;
-        public static final double CX = 319.5;
-        public static final double CY = 239.5;
+        public static double fxAt(int captureWidth)  { return FX * captureWidth  / (double) CAL_WIDTH; }
+        public static double fyAt(int captureHeight) { return FY * captureHeight / (double) CAL_HEIGHT; }
+        public static double cxAt(int captureWidth)  { return CX * captureWidth  / (double) CAL_WIDTH; }
+        public static double cyAt(int captureHeight) { return CY * captureHeight / (double) CAL_HEIGHT; }
 
         /**
          * Manual exposure keeps AprilTags sharp while the robot moves. TUNE ME.

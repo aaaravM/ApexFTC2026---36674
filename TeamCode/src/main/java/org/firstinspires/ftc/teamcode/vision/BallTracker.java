@@ -98,21 +98,47 @@ public class BallTracker {
     /** Below this circularity it is not a single ball. Shadows push this down; tune on the field. */
     private static final double MIN_CIRCULARITY = 0.65;
 
+    /**
+     * Capture resolution. 320x240 is deliberate -- colour blobs do not get better with resolution,
+     * and the lower resolution roughly quarters the per-frame cost.
+     *
+     * <p>Declared here as constants, and the lens intrinsics below are <b>derived</b> from them,
+     * because this was previously a live bug: the portal captured at 320x240 while the distance
+     * maths used {@code RobotConstants.Camera.FX}, which is calibrated for 640x480. Intrinsics
+     * scale linearly with resolution, so every reported distance was off by a factor of two in
+     * one direction and the stale placeholder focal length by 24% in the other. Nothing errored.
+     *
+     * <p>If you change these, the intrinsics follow automatically.
+     */
+    private static final int CAPTURE_WIDTH  = 320;
+    private static final int CAPTURE_HEIGHT = 240;
+
+    /** Intrinsics for {@link #CAPTURE_WIDTH} x {@link #CAPTURE_HEIGHT}, scaled from the C270's. */
+    private static final double FX = RobotConstants.Camera.fxAt(CAPTURE_WIDTH);
+    private static final double CX = RobotConstants.Camera.cxAt(CAPTURE_WIDTH);
+
     private final Map<BallType, ColorBlobLocatorProcessor> processors = new EnumMap<>(BallType.class);
     private final VisionPortal visionPortal;
     private List<Sighting> sightings = Collections.emptyList();
 
     /**
+     * Uses {@link RobotConstants.Names#WEBCAM_BALLS}. If you only own one webcam, use the
+     * {@link #BallTracker(HardwareMap, String, BallType...)} overload and pass its actual name.
+     */
+    public BallTracker(HardwareMap hardwareMap, BallType... lookFor) {
+        this(hardwareMap, RobotConstants.Names.WEBCAM_BALLS, lookFor);
+    }
+
+    /**
      * @param hardwareMap standard
+     * @param cameraName  the webcam's name in the Robot Configuration
      * @param lookFor     which ball types to search for. Each one costs CPU, so ask for only what
      *                    you need -- usually POLLEN plus your own alliance's NECTAR.
      */
-    public BallTracker(HardwareMap hardwareMap, BallType... lookFor) {
+    public BallTracker(HardwareMap hardwareMap, String cameraName, BallType... lookFor) {
         VisionPortal.Builder builder = new VisionPortal.Builder()
-                .setCamera(hardwareMap.get(WebcamName.class, RobotConstants.Names.WEBCAM_BALLS))
-                // 320x240 is deliberate. Colour blobs do not get better with resolution, and the
-                // lower resolution roughly quarters the per-frame cost.
-                .setCameraResolution(new Size(320, 240))
+                .setCamera(hardwareMap.get(WebcamName.class, cameraName))
+                .setCameraResolution(new Size(CAPTURE_WIDTH, CAPTURE_HEIGHT))
                 .setStreamFormat(VisionPortal.StreamFormat.MJPEG)
                 .enableLiveView(true);
 
@@ -190,11 +216,12 @@ public class BallTracker {
      */
     private Sighting toSighting(BallType type, Circle circle, double circularity) {
         double radiusPx = circle.getRadius();
-        double distanceIn = RobotConstants.Camera.FX * type.diameterIn / (2.0 * radiusPx);
+        // FX/CX here are the CAPTURE-resolution intrinsics, not RobotConstants.Camera.FX/CX, which
+        // are calibrated for 640x480. See the field declarations.
+        double distanceIn = FX * type.diameterIn / (2.0 * radiusPx);
 
         // Pixels right of the principal point are to our right, which is a NEGATIVE bearing.
-        double bearingRad = Math.atan2(RobotConstants.Camera.CX - circle.getX(),
-                                       RobotConstants.Camera.FX);
+        double bearingRad = Math.atan2(CX - circle.getX(), FX);
 
         double robotX = RobotConstants.Camera.X_IN + distanceIn * Math.cos(bearingRad);
         double robotY = RobotConstants.Camera.Y_IN + distanceIn * Math.sin(bearingRad);
