@@ -446,11 +446,22 @@ public final class RobotConstants {
          * centred (great for range accuracy) but loses the target whenever the turret slews.
          * A chassis-mounted camera with a wide FOV is easier to make reliable -- start there.
          */
-        public static final boolean MOUNTED_ON_TURRET = false;
+        public static final boolean MOUNTED_ON_TURRET = true;
 
         /** Stream resolution. Lower = faster and less latency. 640x480 is a good AprilTag default. */
         public static final int WIDTH  = 640;
         public static final int HEIGHT = 480;
+
+        /** Degrees the camera is tilted UP from level. Measure with a phone level app. */
+        public static final double PITCH_DEG = 0.0;
+
+        /**
+         * Turret rotation axis, relative to the robot's tracking point, INCHES (+X forward, +Y left).
+         * Only used when MOUNTED_ON_TURRET is true. In that case X_IN / Y_IN above mean the lens
+         * offset FROM THE PIVOT, measured with the turret pointing straight ahead.
+         */
+        public static final double TURRET_PIVOT_X_IN = 0.0;
+        public static final double TURRET_PIVOT_Y_IN = 0.0;
 
         /**
          * Lens intrinsics in pixels at the resolution above, used by the ball tracker to turn
