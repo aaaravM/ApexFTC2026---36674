@@ -40,3 +40,42 @@ Built on **FTC SDK v12.0** (`20260907-090034`), the BIOBUZZ release.
 4. **Call each sensor's `update()` exactly once per loop**, near the top, in dependency order:
    odometry → colour → vision → aim.
 5. **Pull SDK updates, don't re-clone:** `git fetch upstream --tags && git merge v12.x`
+
+
+## Pedro tools: AutoTune and test autos
+
+### AutoTune
+Connect to the robot's Wi-Fi and open **http://192.168.43.1:10158**. Procedures (in `pedro/Tuning.java`):
+
+| Procedure | Use it when |
+|---|---|
+| Mecanum Tuner | drive motors rewired or replaced (wheels off the ground) |
+| Pinpoint Tuner | pods moved. **Verify offsets** with a 180° spin test: x/y should stay within ±0.5" at the halfway point. Hand-measured offsets beat the tuner on this robot. |
+| Foresight Tuner | robot weight changed noticeably (turret, shooter). Needs space ahead and to the left. |
+| Tests | Driving, Localization, Hold, Line, Curve checks with current settings |
+
+All procedures read the same settings as matches: `RobotConstants` (names, directions, pod offsets) and `FollowerTuning` (Foresight).
+
+### Test autos (`opmodes/autos`)
+| Auto | Does | Space needed |
+|---|---|---|
+| First Auto | 24" forward | 3 ft ahead |
+| Square Auto | 24" square, ends at start | 4 ft ahead + left |
+| Curve Auto | curve out and back | 4 ft ahead + left |
+| Intake Curve Auto | Curve Auto + picks up a pollen | 4 ft ahead + left |
+
+Good result for Square/Curve: ends within ~1" of the start mark, heading near 0.
+
+### ⚠️ Pedro 3 known issue: `line()` heading is reversed
+On `line(a, b)` paths, `.linear(a, b)` turns the robot the **wrong way**. Workaround:
+
+| Path | Heading | Write |
+|---|---|---|
+| `line(a, b)` | headings differ | `.linear(b, a)` (swapped) |
+| `curve(a, ctrl, b)` | | `.linear(a, b)` (normal) |
+| either | | `.tangent()` works fine |
+
+If a Pedro update fixes this, swapped lines (marked with comments) must be swapped back.
+
+### Robot configuration
+The active hub config is **`rewire`**. Note: `hub-backup/firstconfig-rewired.xml` is outdated (it has the left/right hubs swapped). In the real config, the **left** drive motors are on the **Control Hub** and the **right** ones on the **Expansion Hub**.
