@@ -73,7 +73,12 @@ public final class PedroConstants {
     // Localizer -- goBILDA Pinpoint with the 4-Bar Odometry Pack
     // ==========================================================================================
     private static PinpointLocalizer buildLocalizer(HardwareMap hardwareMap) {
-        return new PinpointLocalizer(hardwareMap, new PinpointConfig(c -> {
+        return new PinpointLocalizer(hardwareMap, localizerConfig());
+    }
+
+    /** The Pinpoint settings, shared by the Follower and the AutoTune procedures. */
+    public static PinpointConfig localizerConfig() {
+        return new PinpointConfig(c -> {
             c.name.set(RobotConstants.Names.PINPOINT);
 
             // ---- THE OFFSET CONVENTION, settled ----------------------------------------------
@@ -117,7 +122,7 @@ public final class PedroConstants {
             // a known starting pose afterwards without it being zeroed underneath.
             // The robot MUST be stationary while this happens.
             c.resetMode.set(PinpointLocalizer.ResetMode.RECALIBRATE_IMU);
-        }));
+        });
     }
 
     /** Boolean "is reversed" to the SDK Direction enum Pedro's config wants. */
@@ -129,7 +134,12 @@ public final class PedroConstants {
     // Drivetrain -- mecanum
     // ==========================================================================================
     private static Mecanum buildDrivetrain(HardwareMap hardwareMap) {
-        return new Mecanum(hardwareMap, new MecanumConfig(c -> {
+        return new Mecanum(hardwareMap, drivetrainConfig());
+    }
+
+    /** The drivetrain settings, shared by the Follower and the AutoTune procedures. */
+    public static MecanumConfig drivetrainConfig() {
+        return new MecanumConfig(c -> {
             // Names must match the Robot Configuration on the Driver Station exactly.
             // Read the class javadoc about frontLeft/backLeft before editing these.
             c.frontLeftName.set(RobotConstants.Names.FRONT_LEFT);
@@ -154,7 +164,7 @@ public final class PedroConstants {
             // on stick release -- so odometry still reports velocity after the driver thinks they
             // have stopped, and the turret keeps applying a lead it no longer needs.
             c.manualBrakeMode.set(true);
-        }));
+        });
     }
 
     // ==========================================================================================
