@@ -100,26 +100,28 @@ public final class FollowerTuning {
      */
     public static ForesightConfig build() {
         return new ForesightConfig(c -> {
-            // --- 1-5: controllers ---
-            c.headingFeedback.set(Controller.pid(HEADING_KP, HEADING_KI, HEADING_KD));
-            c.forwardTranslational.set(Controller.pid(FORWARD_KP, FORWARD_KI, FORWARD_KD));
-            c.strafeTranslational.set(Controller.pid(STRAFE_KP, STRAFE_KI, STRAFE_KD));
-            c.brake.set(Controller.proportional(BRAKE_KP));
-            c.coast.set(Controller.proportional(COAST_KP));
+            // AutoTuned 2026-10-03 (24" runs). Verified after the 10-11 rewire with Square Auto.
+            Controller primaryTranslationalForward   = Controller.proportional(0.19413400497965824);
+            Controller secondaryTranslationalForward = Controller.proportional(0.07172732748383374);
+            Controller primaryTranslationalLateral   = Controller.proportional(0.23764279539719071);
+            Controller secondaryTranslationalLateral = Controller.proportional(0.08780266296682057);
 
-            // --- 6-8: brake coefficient matrices ---
-            // Diagonal 2x2 over (forward, strafe). Identity linear / zero quadratic is the neutral
-            // starting point: braking scales linearly with distance-to-target and nothing else.
-            c.linearBrakeCoefficients.set(Matrix.diag(1.0, 1.0));
-            c.quadraticBrakeCoefficients.set(Matrix.diag(0.0, 0.0));
-            // (linear, quadratic) for heading braking.
-            c.headingBrakeCoefficients.set(Vector2D.cartesian(1.0, 0.0));
+            c.forwardTranslational.set(Controller.piecewise(secondaryTranslationalForward).put(2.5, primaryTranslationalForward));
+            c.strafeTranslational.set(Controller.piecewise(secondaryTranslationalLateral).put(2.5, primaryTranslationalLateral));
 
-            // --- 9-12: measured robot characteristics ---
-            c.maxAchievableForwardVelocity.set(MAX_FORWARD_VELOCITY);
-            c.maxAchievableStrafeVelocity.set(MAX_STRAFE_VELOCITY);
-            c.naturalForwardDeceleration.set(NATURAL_FORWARD_DECEL);
-            c.naturalStrafeDeceleration.set(NATURAL_STRAFE_DECEL);
+            c.coast.set(Controller.proportionalFeedforward(0.017389356677845302));
+            c.brake.set(Controller.proportionalFeedforward(0.014780953176168506));
+
+            c.headingFeedback.set(Controller.proportional(3.04943011525379));
+            c.headingBrakeCoefficients.set(Vector2D.cartesian(0.044347804237630274, 0.005030203878913554));
+
+            c.linearBrakeCoefficients.set(Matrix.diag(0.08660325064525407, 0.06663123813222216));
+            c.quadraticBrakeCoefficients.set(Matrix.diag(5.83618534644232E-4, 8.069577156433441E-4));
+
+            c.maxAchievableForwardVelocity.set(58.424670577668905);
+            c.maxAchievableStrafeVelocity.set(49.014295988583314);
+            c.naturalForwardDeceleration.set(30.551663298245547);
+            c.naturalStrafeDeceleration.set(59.38720787324426);
         });
     }
 }
