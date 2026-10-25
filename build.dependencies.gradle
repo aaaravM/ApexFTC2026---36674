@@ -30,6 +30,8 @@ dependencies {
     // 'tuning' provides AutoTune, which is how you tune Pedro in v3 (the old per-tuner OpModes
     // are gone). It needs the dairy.foundation repository declared above.
     implementation 'com.pedropathing:tuning:1.0.1'
+    // Ivy: command framework used by the autos (sequential paths, intake commands, waits)
+    implementation 'com.pedropathing.ivy:pedro:1.1.1'
 
     // DELIBERATELY ABSENT: FTC Dashboard and FTControl Panels.
     // BIOBUZZ Competition Manual section 12, rule R704.D names both by name as prohibited:
