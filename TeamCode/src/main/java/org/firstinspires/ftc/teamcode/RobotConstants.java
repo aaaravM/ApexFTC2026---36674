@@ -414,7 +414,9 @@ public final class RobotConstants {
          * Units: power per (rad/s). TUNE ME -- start at KV and adjust until the turret holds a
          * field target while you spin the robot in place.
          */
-        public static final double KV = 0.11;
+        // Power per (rad/s) of chassis rotation. Turret top speed ~160 deg/s (2.8 rad/s) at full
+        // power -> 1 / 2.8 = 0.36. Calculated; adjust if the turret lags or overshoots while spinning.
+        public static final double KV = 0.36;
 
         /** Considered "on target" within this angular error. */
         public static final double TOLERANCE_RAD = Math.toRadians(1.5);
