@@ -394,7 +394,7 @@ public final class RobotConstants {
          * reduction over two. At G=5, full +/-170 deg of travel is 4.7 turns of the motor output
          * shaft, so route the turret wiring with a service loop or it will tear out.
          */
-        public static final double TICKS_PER_RAD = 427.889;   // 85.5777 * G, with G = 5
+        public static final double TICKS_PER_RAD = 982.9;   // 85.5777 * G, with G = 5
 
         /** Mechanical travel limits in radians, relative to "straight forward" = 0. */
         public static final double MIN_ANGLE_RAD = Math.toRadians(-170);
