@@ -43,6 +43,8 @@ public final class RobotConstants {
         public static final String FRONT_RIGHT  = "rightfront";
         public static final String BACK_LEFT    = "leftback";
         public static final String BACK_RIGHT   = "rightback";
+        /** Kicker servo: pushes balls into the flywheel. goBILDA Dual Mode 300-deg torque servo, POSITION mode. */
+        public static final String KICKER        = "kicker";
 
         /**
          * The goBILDA Pinpoint, as it is ACTUALLY named in the team's robot configuration.
