@@ -37,6 +37,9 @@ public class TeleOpBasic extends OpMode {
   private boolean wasReady = false;
   private boolean prevR2, prevRB, prevLB;
 
+  private double transferSpeed = TRANSFER_POWER;   // adjustable with gamepad 2 D-pad left/right
+  private boolean prev2Left, prev2Right;
+
   @Override
   public void init() {
     // ---- Drivetrain (directions verified with TeleOpDriveOnly) ----
@@ -141,19 +144,21 @@ public class TeleOpBasic extends OpMode {
     leftServo.setPower(sp);
     rightServo.setPower(sp);
 
-    // ---- Transfer: Square = feed (only while READY), Triangle = back ----
+    // ---- Transfer speed: gamepad 2 D-pad right/left, 10% per press (10% to 100%) ----
+    if (gamepad2.dpad_right && !prev2Right) transferSpeed = Math.min(1.0, transferSpeed + 0.1);
+    if (gamepad2.dpad_left && !prev2Left)   transferSpeed = Math.max(0.1, transferSpeed - 0.1);
+    prev2Right = gamepad2.dpad_right;
+    prev2Left = gamepad2.dpad_left;
+
+    // ---- Transfer: Square = up, Triangle = back (no longer gated on the flywheel) ----
     double tp = 0;
     String transferState = "holding";
     if (gamepad2.y) {
-      tp = -TRANSFER_POWER;
+      tp = -transferSpeed;
       transferState = "BACK";
     } else if (gamepad2.x) {
-      if (ready) {
-        tp = TRANSFER_POWER;
-        transferState = "FEEDING";
-      } else {
-        transferState = flywheelOn ? "waiting for READY" : "flywheel OFF (R2)";
-      }
+      tp = transferSpeed;
+      transferState = "UP";
     }
     transfer.setPower(tp);
 
@@ -161,7 +166,7 @@ public class TeleOpBasic extends OpMode {
     String shooterState = !flywheelOn ? "OFF" : (ready ? "READY" : "spinning up...");
     telemetry.addData("SHOOTER", shooterState);
     telemetry.addData("RPM (actual / target)", "%.0f / %.0f", rpm, targetRpm);
-    telemetry.addData("Transfer", transferState);
+    telemetry.addData("Transfer", "%s @ %.0f%% (GP2 D-pad L/R)", transferState, transferSpeed * 100);
     telemetry.addData("Intake", intakeState);
     telemetry.addData("Drive", scale < 1.0 ? "SLOW" : "normal");
     telemetry.update();
