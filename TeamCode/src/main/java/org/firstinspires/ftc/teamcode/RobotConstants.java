@@ -77,7 +77,7 @@ public final class RobotConstants {
         public static final String FLYWHEEL      = "flywheel";
         public static final String FLYWHEEL_2    = "flywheel_2";   // set USE_DUAL_FLYWHEEL=false if absent
         public static final String TURRET        = "turret";       // not configured yet
-        public static final String FEEDER        = "feeder";       // not configured yet
+        public static final String FEEDER        = "transfer";
 
         // -- Intake / sorting -- (existing config names)
         public static final String INTAKE        = "intakemain";
@@ -134,8 +134,8 @@ public final class RobotConstants {
          *
          * <p>TUNE ME: measure with a ruler first, then refine with {@code T2_PinpointOffsetTuner}.
          */
-        public static final double X_POD_OFFSET_MM = -84.0;
-        public static final double Y_POD_OFFSET_MM = -168.0;
+        public static final double X_POD_OFFSET_MM = 72.4;
+        public static final double Y_POD_OFFSET_MM = -44.5;
 
         /**
          * Which way each pod counts. The X pod must count UP when the robot is pushed FORWARD.
@@ -195,10 +195,10 @@ public final class RobotConstants {
          * <p>If instead ONE wheel is wrong, the robot veers or spins rather than cleanly reversing.
          * In that case flip only that corner.
          */
-        public static final boolean REVERSE_FRONT_LEFT  = false;
-        public static final boolean REVERSE_BACK_LEFT   = false;
-        public static final boolean REVERSE_FRONT_RIGHT = true;
-        public static final boolean REVERSE_BACK_RIGHT  = true;
+        public static final boolean REVERSE_FRONT_LEFT  = true;
+        public static final boolean REVERSE_BACK_LEFT   = true;
+        public static final boolean REVERSE_FRONT_RIGHT = false;
+        public static final boolean REVERSE_BACK_RIGHT  = false;
 
         /** Deadband on the joysticks, to stop drift from a worn gamepad. */
         public static final double STICK_DEADBAND = 0.05;
@@ -495,7 +495,7 @@ public final class RobotConstants {
          * centred (great for range accuracy) but loses the target whenever the turret slews.
          * A chassis-mounted camera with a wide FOV is easier to make reliable -- start there.
          */
-        public static final boolean MOUNTED_ON_TURRET = false;
+        public static final boolean MOUNTED_ON_TURRET = true;
 
         /** Stream resolution. Lower = faster and less latency. 640x480 is a good AprilTag default. */
         public static final int WIDTH  = 640;
@@ -526,6 +526,16 @@ public final class RobotConstants {
         public static final double FY = 822.317;
         public static final double CX = 319.495;
         public static final double CY = 242.502;
+        /** Degrees the camera is tilted UP from level. Measure with a phone level app. */
+        public static final double PITCH_DEG = 0.0;
+
+        /**
+         * Turret rotation axis, relative to the robot's tracking point, INCHES (+X forward, +Y left).
+         * Only used when MOUNTED_ON_TURRET is true. In that case X_IN / Y_IN above mean the lens
+         * offset FROM THE PIVOT, measured with the turret pointing straight ahead.
+         */
+        public static final double TURRET_PIVOT_X_IN = 0.0;
+        public static final double TURRET_PIVOT_Y_IN = 0.0;
 
         /**
          * Intrinsics scale LINEARLY with capture resolution, and forgetting that is an easy and

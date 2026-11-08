@@ -169,7 +169,9 @@ public class HiveTracker {
         // documented (range = line-of-sight distance, +bearing = target is to our LEFT,
         // +elevation = target is ABOVE us) so there is no axis-convention trap.
         double bearing = Math.toRadians(lastBearingDeg);
-        double elevation = Math.toRadians(lastElevationDeg);
+        // ftcPose.elevation is relative to the camera's optical axis; add the mount tilt.
+        // Exact when the tag is centred horizontally (which the turret drives toward).
+        double elevation = Math.toRadians(lastElevationDeg + RobotConstants.Camera.PITCH_DEG);
 
         double horizontalRange = lastRange * Math.cos(elevation);
         double heightAboveCamera = lastRange * Math.sin(elevation);
@@ -178,8 +180,18 @@ public class HiveTracker {
         if (RobotConstants.Camera.MOUNTED_ON_TURRET) cameraYaw += turretAngleRad;
 
         double angleInRobotFrame = cameraYaw + bearing;
-        double robotX = RobotConstants.Camera.X_IN + horizontalRange * Math.cos(angleInRobotFrame);
-        double robotY = RobotConstants.Camera.Y_IN + horizontalRange * Math.sin(angleInRobotFrame);
+        // Lens position in the robot frame. On a turret, the lens orbits the pivot.
+        double camX = RobotConstants.Camera.X_IN;
+        double camY = RobotConstants.Camera.Y_IN;
+        if (RobotConstants.Camera.MOUNTED_ON_TURRET) {
+            double tc = Math.cos(turretAngleRad), ts = Math.sin(turretAngleRad);
+            camX = RobotConstants.Camera.TURRET_PIVOT_X_IN
+                + RobotConstants.Camera.X_IN * tc - RobotConstants.Camera.Y_IN * ts;
+            camY = RobotConstants.Camera.TURRET_PIVOT_Y_IN
+                + RobotConstants.Camera.X_IN * ts + RobotConstants.Camera.Y_IN * tc;
+        }
+        double robotX = camX + horizontalRange * Math.cos(angleInRobotFrame);
+        double robotY = camY + horizontalRange * Math.sin(angleInRobotFrame);
         double robotZ = RobotConstants.Camera.Z_IN + heightAboveCamera;
 
         // --- Robot frame -> field frame, using the pose from when the shutter opened ----------

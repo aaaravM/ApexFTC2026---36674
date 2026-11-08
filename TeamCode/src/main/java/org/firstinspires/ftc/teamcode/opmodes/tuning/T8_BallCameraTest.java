@@ -56,8 +56,8 @@ import java.util.List;
  * Each colour is a separate pass over the image, so switching off the ones you do not need buys back
  * real loop time. In a match you only ever need POLLEN plus your own alliance's NECTAR.
  */
-@TeleOp(name = "T7 Ball Camera Test (C270)", group = "Tuning")
-public class T7_BallCameraTest extends LinearOpMode {
+@TeleOp(name = "T8 Ball Camera Test (C270)", group = "Tuning")
+public class T8_BallCameraTest extends LinearOpMode {
 
     /** Must match the Robot Configuration exactly. Case-sensitive. */
     public static final String CAMERA_NAME = "Webcam 1";
