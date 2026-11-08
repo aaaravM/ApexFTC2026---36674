@@ -19,14 +19,14 @@ public class T7_IntakeTransferShooterTest extends OpMode {
   private static final double TICKS_PER_REV = RobotConstants.Shoot.FLYWHEEL_TICKS_PER_REV; // 28
   private static final double SERVO_POWER = 1.0;
   private static final double REVERSE_FLYWHEEL_POWER = 0.3;  // slow, for clearing jams
-  private static final double RPM_STEP = 100;
+  private static final double RPM_STEP = 25;
 
   private DcMotorEx intakeMain, transfer, flywheel;
   private CRServo leftServo, rightServo;
 
   private double intakePower = 0.8;
   private double transferSpeed = 1.0;
-  private double targetRpm = 3200;   // starting guess; tune with the bumpers
+  private double targetRpm = 2500;   // flywheel RPM (2:1 gearing); tune with R1/L1
 
   private boolean prevUp, prevDown, prevLeft, prevRight, prevRB, prevLB;
 

@@ -306,7 +306,9 @@ public final class RobotConstants {
          * limitation is the opposite: 28 counts/rev is the <b>coarsest velocity feedback on the
          * robot</b>, which is why {@link #RPM_TOLERANCE} is generous and why D is useless here.
          */
-        public static final double FLYWHEEL_TICKS_PER_REV = 28.0;
+        // Motor encoder: 28 ticks per MOTOR rev. Geared 2:1 DOWN (motor turns twice per flywheel
+        // turn), so 56 ticks per FLYWHEEL rev. All RPM displays and targets are now FLYWHEEL RPM.
+        public static final double FLYWHEEL_TICKS_PER_REV = 56.0;
 
         /**
          * Velocity PIDF for the flywheel.
@@ -355,7 +357,8 @@ public final class RobotConstants {
          * exit speed. Keeping the clamp well above the useful band is fine; it exists to catch a
          * runaway ballistics solution, not to define the operating point.
          */
-        public static final double MAX_FLYWHEEL_RPM = 5000.0;
+        // Flywheel RPM. Motor max ~6000 RPM / 2:1 gearing = ~3000 flywheel RPM at best.
+        public static final double MAX_FLYWHEEL_RPM = 3000.0;
 
         /**
          * Ramp the commanded RPM rather than stepping it. A step draws close to the motor's 9.2 A

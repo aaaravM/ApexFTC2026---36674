@@ -24,7 +24,7 @@ public class TeleOpBasic extends OpMode {
   private static final double INTAKE_POWER = 0.8;
   private static final double SERVO_POWER = 1.0;
   private static final double TRANSFER_POWER = 1.0;
-  private static final double RPM_STEP = 100;
+  private static final double RPM_STEP = 25;
 
   // ---- Hardware ----
   private DcMotorEx frontLeft, frontRight, backLeft, backRight;
@@ -33,7 +33,7 @@ public class TeleOpBasic extends OpMode {
 
   // ---- State ----
   private boolean flywheelOn = false;
-  private double targetRpm = 3200;   // adjust with gamepad 2 bumpers
+  private double targetRpm = 2500;   // flywheel RPM (2:1 gearing); tune with R1/L1
   private boolean wasReady = false;
   private boolean prevR2, prevRB, prevLB;
 
