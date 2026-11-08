@@ -62,6 +62,14 @@ public enum BallType {
     public final double massKg;
 
     /**
+     * The compile-time baseline efficiency, as written in the enum constant above. Never changes.
+     *
+     * <p>Kept separate from the live value so a tuning session can always show how far it has
+     * drifted from what is committed, and so {@link #resetEfficiency()} has something to go back to.
+     */
+    public final double defaultTransferEfficiency;
+
+    /**
      * Fraction of flywheel surface speed that the ball leaves with. <b>TUNE ME.</b>
      *
      * <p>Rough starting points:
@@ -70,10 +78,18 @@ public enum BallType {
      *       leaves at roughly half the surface speed)</li>
      *   <li>Two opposed flywheels: ~0.85-0.95 (both sides drive the ball, almost no slip)</li>
      * </ul>
-     * Measure it: command a known RPM, shoot flat off a table, and measure how far the ball flies.
-     * {@code T5_ShooterRpmTuner} walks you through it and prints the implied efficiency.
+     *
+     * <p><b>Adjustable at runtime</b> via {@link #adjustEfficiency(double)}, so
+     * {@code IntakeFlywheelTuner} can nudge it 1% at a time between shots and you can watch the
+     * predicted range move without redeploying. That is the whole point -- otherwise every tweak is
+     * a two-minute build-and-install cycle and you lose the thread.
+     *
+     * <p><b>The live value does NOT persist.</b> It lives in memory on the Robot Controller, so it
+     * resets to {@link #defaultTransferEfficiency} whenever the robot app restarts -- which includes
+     * every deploy. Once you have a number you believe, <b>write it into the enum constant above and
+     * commit it</b>, or you will lose it and not notice until shots start missing.
      */
-    public final double transferEfficiency;
+    private double transferEfficiency;
 
     /**
      * Air-drag correction, as a fractional speed increase per inch of range. <b>TUNE ME.</b>
@@ -97,8 +113,44 @@ public enum BallType {
     BallType(double diameterIn, double massKg, double transferEfficiency, double dragPerInch) {
         this.diameterIn = diameterIn;
         this.massKg = massKg;
+        this.defaultTransferEfficiency = transferEfficiency;
         this.transferEfficiency = transferEfficiency;
         this.dragPerInch = dragPerInch;
+    }
+
+    /** The live efficiency, including any runtime tuning. Use this, never a stored copy. */
+    public double getTransferEfficiency() {
+        return transferEfficiency;
+    }
+
+    /**
+     * Nudge the live efficiency. The tuner passes {@code +0.01} / {@code -0.01} for 1% steps.
+     *
+     * <p>Clamped to 0.05-1.00. Above 1.0 is physically impossible -- the ball cannot leave faster
+     * than the wheel surface -- and an efficiency near zero would demand infinite RPM, so neither
+     * bound is arbitrary. {@link #NONE} is deliberately excluded: its efficiency of 0 is what makes
+     * {@link #canFire()} false, and letting a tuning keypress make an unidentified ball firable
+     * would quietly defeat that safeguard.
+     */
+    public void adjustEfficiency(double delta) {
+        if (this == NONE) return;
+        transferEfficiency = Math.max(0.05, Math.min(1.00, transferEfficiency + delta));
+    }
+
+    /** Overwrite the live efficiency outright, same clamping as {@link #adjustEfficiency}. */
+    public void setTransferEfficiency(double value) {
+        if (this == NONE) return;
+        transferEfficiency = Math.max(0.05, Math.min(1.00, value));
+    }
+
+    /** Back to the committed value. */
+    public void resetEfficiency() {
+        transferEfficiency = defaultTransferEfficiency;
+    }
+
+    /** True if the live value has been tuned away from what is committed in the source. */
+    public boolean isEfficiencyTuned() {
+        return Math.abs(transferEfficiency - defaultTransferEfficiency) > 1e-9;
     }
 
     public boolean isNectar() {
