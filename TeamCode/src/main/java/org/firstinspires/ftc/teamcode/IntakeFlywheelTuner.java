@@ -70,8 +70,8 @@ public class IntakeFlywheelTuner extends LinearOpMode {
     /** Muzzle height above the floor, inches. MEASURE THIS on your robot. */
     private static final double MUZZLE_HEIGHT_IN = 14.0;
 
-    /** Fine RPM step, dpad up/down. At this hood angle 5 rpm is roughly 0.35 in of range. */
-    private static final double RPM_STEP_FINE = 5.0;
+    /** Fine RPM step, dpad up/down. At this hood angle 1 rpm is roughly 0.07 in of range. */
+    private static final double RPM_STEP_FINE = 1.0;
 
     /** Coarse RPM step, dpad left/right, for getting into the ballpark without 100 keypresses. */
     private static final double RPM_STEP_COARSE = 50.0;
@@ -114,7 +114,7 @@ public class IntakeFlywheelTuner extends LinearOpMode {
 
         while (opModeIsActive()) {
             // --- RPM setpoint ---------------------------------------------------------------
-            // RPM: dpad up/down in 5s for fine work, left/right in 50s to get to the ballpark.
+            // RPM: dpad up/down in 1s for fine work, left/right in 50s to get to the ballpark.
             if (gamepad1.dpad_up && !upWas) commandedRpm += RPM_STEP_FINE;
             upWas = gamepad1.dpad_up;
             if (gamepad1.dpad_down && !downWas) commandedRpm = Math.max(0, commandedRpm - RPM_STEP_FINE);
