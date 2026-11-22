@@ -457,7 +457,7 @@ public final class RobotConstants {
 
         /** Stream resolution. Lower = faster and less latency. 640x480 is a good AprilTag default. */
         public static final int WIDTH  = 640;
-        public static final int HEIGHT = 480;
+        public static final int HEIGHT = 400;
 
         /** Degrees the camera is tilted UP from level. Measure with a phone level app. */
         public static final double PITCH_DEG = 0.0;
