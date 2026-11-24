@@ -10,26 +10,27 @@ import org.firstinspires.ftc.robotcore.external.navigation.CurrentUnit;
 import org.firstinspires.ftc.teamcode.RobotConstants;
 
 /**
- * Dual-motor flywheel tuner (Flywheel + flywheel_2 on ONE shaft, geared 2:1 down).
+ * Dual-motor flywheel tuner (Flywheel + flywheel_2 on ONE shaft, geared 2:1 down),
+ * with intake and transfer controls for live shot testing.
  *
- * SHARE/BACK switches stage.
+ * GAMEPAD 1 - SHOOTER.  SHARE/BACK switches stage.
+ *   STAGE 1 - DIRECTION (20% power, no velocity control)
+ *     Hold Cross  = motor 1 (Flywheel) only      Square   = flip motor 1 direction
+ *     Hold Circle = motor 2 (flywheel_2) only    Triangle = flip motor 2 direction
+ *   STAGE 2 - RUN (both motors, velocity PIDF)
+ *     Circle = on/off   Cross = step test   R2/L2 = target RPM +/- 25
+ *     D-pad up/down = select gain   D-pad right/left = gain +/-   R1/L1 = step x10 / /10
+ *     Left stick button = reset metrics
  *
- * STAGE 1 - DIRECTION (20% power, no velocity control)
- *   Hold Cross  = motor 1 (Flywheel) only      Square   = flip motor 1 direction
- *   Hold Circle = motor 2 (flywheel_2) only    Triangle = flip motor 2 direction
- *   Both motors' encoders turn with the shaft, so the screen shows whether they AGREE.
+ * GAMEPAD 2 - INTAKE + TRANSFER (both stages, hold to run)
+ *   Cross / Circle = intake in / reverse      Square / Triangle = transfer up / reverse
+ *   D-pad up/down = intake power +/- 10%      D-pad right/left = transfer power +/- 10%
  *
- * STAGE 2 - RUN (both motors, velocity PIDF)
- *   Circle = flywheel on/off          Cross = step test (jump between low and target RPM)
- *   R2 / L2 = target RPM +/- 25
- *   D-pad up/down = select gain (F, P, I, D)    D-pad right/left = gain +/- step
- *   R1 / L1 = step size x10 / /10               Left stick button = reset metrics
- *
- * SAFETY: in Stage 2, power is cut if either motor draws near-stall current, or the two
+ * SAFETY: in Stage 2, the flywheel cuts out if either motor draws near-stall current, or the two
  * encoders disagree, for more than half a second. Circle clears the fault.
  */
-@TeleOp(name = "T11 Shooter Tuner", group = "Test")
-public class T11_ShooterTuner extends OpMode {
+@TeleOp(name = "T13 Shooter Tuner", group = "Test")
+public class T13_ShooterTuner extends OpMode {
 
   private static final double TICKS_PER_REV = RobotConstants.Shoot.FLYWHEEL_TICKS_PER_REV; // 56
   private static final double DIRECTION_POWER = 0.2;
@@ -41,7 +42,7 @@ public class T11_ShooterTuner extends OpMode {
   private enum Stage { DIRECTION, RUN }
   private Stage stage = Stage.DIRECTION;
 
-  private DcMotorEx m1, m2;
+  private DcMotorEx m1, m2, intakeMain, transfer;
   private boolean rev1 = RobotConstants.Shoot.REVERSE_FLYWHEEL;
   private boolean rev2 = RobotConstants.Shoot.REVERSE_FLYWHEEL_2;
 
@@ -65,8 +66,14 @@ public class T11_ShooterTuner extends OpMode {
   private boolean reached = false;
   private double reachSec = -1, overshoot = 0, lowestAfterReach = Double.MAX_VALUE;
 
-  // Button edges
+  // Intake / transfer
+  private double intakePower = 0.8;
+  private double transferPower = 1.0;
+
+  // Button edges, gamepad 1
   private boolean pBack, pA, pB, pX, pY, pUp, pDown, pLeft, pRight, pRB, pLB, pR2, pL2, pLS;
+  // Button edges, gamepad 2
+  private boolean p2Up, p2Down, p2Left, p2Right;
 
   @Override
   public void init() {
@@ -78,7 +85,16 @@ public class T11_ShooterTuner extends OpMode {
       m.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
     }
     applyDirections();
-    telemetry.addLine("T13 ready. Starts in STAGE 1 (direction). Share/Back switches stage.");
+
+    intakeMain = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.INTAKE);
+    intakeMain.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    intakeMain.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+    transfer = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.FEEDER);
+    transfer.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+    transfer.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+    telemetry.addLine("T13 ready. Starts in STAGE 1 (direction). GP1 Share/Back switches stage.");
     telemetry.update();
   }
 
@@ -93,7 +109,7 @@ public class T11_ShooterTuner extends OpMode {
     m2.setVelocityPIDFCoefficients(gains[1], gains[2], gains[3], gains[0]);
   }
 
-  private void stopBoth() {
+  private void stopFlywheel() {
     m1.setPower(0);
     m2.setPower(0);
   }
@@ -119,9 +135,9 @@ public class T11_ShooterTuner extends OpMode {
     boolean r2 = gamepad1.right_trigger > 0.5, l2 = gamepad1.left_trigger > 0.5;
     boolean ls = gamepad1.left_stick_button;
 
-    // ---- Stage switch (always stops the motors first) ----
+    // ---- Stage switch (always stops the flywheel first) ----
     if (back && !pBack) {
-      stopBoth();
+      stopFlywheel();
       on = false;
       fault = null;
       if (stage == Stage.DIRECTION) {
@@ -146,7 +162,7 @@ public class T11_ShooterTuner extends OpMode {
       String running;
       if (a)      { m1.setPower(DIRECTION_POWER); m2.setPower(0); running = "MOTOR 1 only (Flywheel)"; }
       else if (b) { m1.setPower(0); m2.setPower(DIRECTION_POWER); running = "MOTOR 2 only (flywheel_2)"; }
-      else        { stopBoth(); running = "stopped"; }
+      else        { stopFlywheel(); running = "stopped"; }
 
       // Flip directions only while stopped
       if (!a && !b) {
@@ -160,7 +176,7 @@ public class T11_ShooterTuner extends OpMode {
             ? "AGREE (directions match)" : "DISAGREE -> flip motor 2 (Triangle)";
       }
 
-      telemetry.addLine("=== STAGE 1: DIRECTION (Share/Back = next stage) ===");
+      telemetry.addLine("=== STAGE 1: DIRECTION (GP1 Share/Back = next stage) ===");
       telemetry.addData("Running", running);
       telemetry.addData("Motor 1 reversed (Square)", rev1);
       telemetry.addData("Motor 2 reversed (Triangle)", rev2);
@@ -171,17 +187,13 @@ public class T11_ShooterTuner extends OpMode {
 
     } else {
       // ================= STAGE 2: RUN =================
-      // On/off and fault clear
       if (b && !pB) {
         if (fault != null) { fault = null; on = false; }
         else { on = !on; if (on) markTargetChange(); }
       }
-      // Step test
       if (a && !pA && on) { stepLow = !stepLow; markTargetChange(); }
-      // Target RPM
       if (r2 && !pR2) { targetRpm = Math.min(RobotConstants.Shoot.MAX_FLYWHEEL_RPM, targetRpm + RPM_STEP); markTargetChange(); }
       if (l2 && !pL2) { targetRpm = Math.max(0, targetRpm - RPM_STEP); markTargetChange(); }
-      // Gain selection and editing
       if (up && !pUp)     selected = (selected + gains.length - 1) % gains.length;
       if (down && !pDown) selected = (selected + 1) % gains.length;
       if (rb && !pRB) gainStep = Math.min(10.0, gainStep * 10);
@@ -190,7 +202,6 @@ public class T11_ShooterTuner extends OpMode {
       if (right && !pRight) { gains[selected] += gainStep; gainChanged = true; }
       if (left && !pLeft)   { gains[selected] = Math.max(0, gains[selected] - gainStep); gainChanged = true; }
       if (gainChanged) applyPidf();
-      // Reset metrics
       if (ls && !pLS) markTargetChange();
 
       // Safety: near-stall current or encoders disagreeing = cut power
@@ -214,26 +225,26 @@ public class T11_ShooterTuner extends OpMode {
         m2.setVelocity(tps);
         ready = Math.abs(rpm - tgt) <= RobotConstants.Shoot.RPM_TOLERANCE;
 
-        // Metrics
         if (!reached && ready) { reached = true; reachSec = (System.nanoTime() - changeNano) / 1e9; }
         if (reached) {
           overshoot = Math.max(overshoot, rpm - tgt);
           lowestAfterReach = Math.min(lowestAfterReach, rpm);
         }
       } else {
-        stopBoth();
+        stopFlywheel();
       }
 
       String state = fault != null ? "FAULT: " + fault + " (Circle clears)"
           : !on ? "OFF (Circle)" : (ready ? "READY" : "spinning...");
 
-      telemetry.addLine("=== STAGE 2: RUN (Share/Back = direction stage) ===");
+      telemetry.addLine("=== STAGE 2: RUN (GP1 Share/Back = direction stage) ===");
       telemetry.addData("Flywheel", state);
       telemetry.addData("Target (R2/L2)", "%.0f%s", tgt, stepLow ? "  [STEP LOW]" : "");
       telemetry.addData("Actual (avg)", "%.0f   error %+.0f", rpm, rpm - tgt);
       telemetry.addData("Motor 1 / 2 RPM", "%.0f / %.0f", rpm1, rpm2);
       telemetry.addData("Motor 1 / 2 amps", "%.1f / %.1f", amps1, amps2);
       telemetry.addLine();
+      telemetry.addLine("--- PIDF (D-pad up/down select, right/left change) ---");
       for (int i = 0; i < gains.length; i++) {
         telemetry.addData((i == selected ? "> " : "  ") + gainNames[i], "%.4f", gains[i]);
       }
@@ -244,6 +255,31 @@ public class T11_ShooterTuner extends OpMode {
       telemetry.addData("Lowest after READY", lowestAfterReach == Double.MAX_VALUE ? "-" : String.format("%.0f", lowestAfterReach));
     }
 
+    // ================= GAMEPAD 2: INTAKE + TRANSFER (both stages) =================
+    boolean u2 = gamepad2.dpad_up, d2 = gamepad2.dpad_down, l2d = gamepad2.dpad_left, r2d = gamepad2.dpad_right;
+    if (u2 && !p2Up)     intakePower   = Math.min(1.0, intakePower + 0.1);
+    if (d2 && !p2Down)   intakePower   = Math.max(0.1, intakePower - 0.1);
+    if (r2d && !p2Right) transferPower = Math.min(1.0, transferPower + 0.1);
+    if (l2d && !p2Left)  transferPower = Math.max(0.1, transferPower - 0.1);
+    p2Up = u2; p2Down = d2; p2Left = l2d; p2Right = r2d;
+
+    String intakeState = "stopped";
+    double ip = 0;
+    if (gamepad2.a)      { ip =  intakePower; intakeState = "IN"; }
+    else if (gamepad2.b) { ip = -intakePower; intakeState = "REVERSE"; }
+    intakeMain.setPower(ip);
+
+    String transferState = "holding";
+    double tp = 0;
+    if (gamepad2.x)      { tp =  transferPower; transferState = "UP"; }
+    else if (gamepad2.y) { tp = -transferPower; transferState = "REVERSE"; }
+    transfer.setPower(tp);
+
+    telemetry.addLine();
+    telemetry.addLine("--- GP2: intake + transfer ---");
+    telemetry.addData("Intake (Cross/Circle)", "%s @ %.0f%%", intakeState, intakePower * 100);
+    telemetry.addData("Transfer (Square/Triangle)", "%s @ %.0f%%", transferState, transferPower * 100);
+
     telemetry.update();
 
     pBack = back; pA = a; pB = b; pX = x; pY = y; pUp = up; pDown = down;
@@ -252,6 +288,8 @@ public class T11_ShooterTuner extends OpMode {
 
   @Override
   public void stop() {
-    stopBoth();
+    stopFlywheel();
+    intakeMain.setPower(0);
+    transfer.setPower(0);
   }
 }
