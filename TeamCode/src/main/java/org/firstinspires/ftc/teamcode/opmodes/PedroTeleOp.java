@@ -6,7 +6,6 @@ import com.pedropathing.follower.ManualDrive;
 import com.pedropathing.math.Pose;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 
@@ -65,8 +64,6 @@ public class PedroTeleOp extends LinearOpMode {
     private PedroOdometry odometry;
 
     private DcMotorEx intakeMain;
-    private CRServo rightIntake;
-    private CRServo leftIntake;
 
     private static final double STICK_DEADBAND = 0.05;
     private static final double TRIGGER_DEADBAND = 0.10;
@@ -76,16 +73,12 @@ public class PedroTeleOp extends LinearOpMode {
         follower = PedroConstants.createFollower(hardwareMap);
         odometry = new PedroOdometry(hardwareMap, follower);
 
-        // Intake and outtake have nothing to do with Pedro -- it only owns the drive motors and the
-        // Pinpoint. These stay plain SDK calls.
-        intakeMain  = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.INTAKE);
-        rightIntake = hardwareMap.get(CRServo.class, RobotConstants.Names.INTAKE_SERVO_R);
-        leftIntake  = hardwareMap.get(CRServo.class, RobotConstants.Names.INTAKE_SERVO_L);
+        // Intake has nothing to do with Pedro -- it only owns the drive motors and the
+        // Pinpoint. This stays a plain SDK call. (Side intake servos were removed.)
+        intakeMain = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.INTAKE);
 
         intakeMain.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         intakeMain.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-        leftIntake.setDirection(CRServo.Direction.FORWARD);
-        rightIntake.setDirection(CRServo.Direction.REVERSE);
 
         // Start the pose at the origin. In autonomous, set this to your real starting position.
         follower.setPose(new Pose(0, 0, 0));
@@ -134,7 +127,7 @@ public class PedroTeleOp extends LinearOpMode {
 
             if (fieldCentric) {
                 DrivePowers powers = ManualDrive.fieldCentric(
-                        forward, lateral, turn, follower.pose().heading());
+                    forward, lateral, turn, follower.pose().heading());
                 follower.manual(powers);
             } else {
                 follower.manual(forward, lateral, turn);
@@ -146,20 +139,11 @@ public class PedroTeleOp extends LinearOpMode {
             // Sample pose/velocity only after update().
             odometry.update();
 
-            // --- intake ---------------------------------------------------------------------
-            // Motor and servos share ONE threshold. The original used a bare
-            // (right_trigger - left_trigger) for the motor while the servos used 0.1, so a trigger
-            // resting slightly off zero spun the motor with the servos idle -- and holding both
-            // triggers stopped the motor dead while the servos kept feeding.
+            // --- intake (main roller only; side servos were removed) -----------------------
             double intakeIn  = gamepad1.right_trigger > TRIGGER_DEADBAND ? gamepad1.right_trigger : 0.0;
             double intakeOut = gamepad1.left_trigger  > TRIGGER_DEADBAND ? gamepad1.left_trigger  : 0.0;
             double intakePower = intakeIn - intakeOut;
             intakeMain.setPower(intakePower);
-
-            // Drive the servos from the same signed value, so they can never fight the motor.
-            double servoPower = Math.signum(intakePower);
-            leftIntake.setPower(servoPower);
-            rightIntake.setPower(servoPower);
 
             // --- telemetry ------------------------------------------------------------------
             telemetry.addData("Mode", fieldCentric ? "FIELD-CENTRIC" : "robot-centric");
@@ -174,9 +158,9 @@ public class PedroTeleOp extends LinearOpMode {
             telemetry.addLine();
             telemetry.addLine("=== VELOCITY ===");
             telemetry.addData("field vx/vy", "%+7.1f  %+7.1f in/s",
-                    odometry.getFieldVelX(), odometry.getFieldVelY());
+                odometry.getFieldVelX(), odometry.getFieldVelY());
             telemetry.addData("robot fwd/left", "%+7.1f  %+7.1f in/s",
-                    odometry.getRobotVelForward(), odometry.getRobotVelLeft());
+                odometry.getRobotVelForward(), odometry.getRobotVelLeft());
             telemetry.addData("speed", "%7.1f in/s", odometry.getSpeed());
             telemetry.addData("omega", "%+7.1f deg/s", Math.toDegrees(odometry.getHeadingVelRad()));
 
@@ -194,8 +178,6 @@ public class PedroTeleOp extends LinearOpMode {
 
         follower.stop();
         intakeMain.setPower(0);
-        leftIntake.setPower(0);
-        rightIntake.setPower(0);
     }
 
     private static double deadband(double value) {

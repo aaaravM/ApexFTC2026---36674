@@ -271,7 +271,7 @@ public final class RobotConstants {
          * at OpMode <b>init</b> -- the OpMode dies before START, which reads like a config problem
          * rather than a constants problem.
          */
-        public static final boolean USE_DUAL_FLYWHEEL = false;
+        public static final boolean USE_DUAL_FLYWHEEL = true;
 
         /**
          * Which way the flywheel spins. Flip this if the ball is thrown the wrong way.
@@ -287,6 +287,13 @@ public final class RobotConstants {
          * automatically -- opposed wheels have to counter-rotate to throw the ball forward.
          */
         public static final boolean REVERSE_FLYWHEEL = true;
+
+        /**
+         * Direction of the second flywheel motor (flywheel_2). Both motors turn the SAME shaft,
+         * so this depends only on how flywheel_2 is mounted. Found with T13 Stage 1; if wrong,
+         * the two motors fight each other.
+         */
+        public static final boolean REVERSE_FLYWHEEL_2 = false;
 
         /**
          * Encoder counts per revolution of the flywheel. <b>28.0 is correct as written</b> for this

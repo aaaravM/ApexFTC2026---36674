@@ -74,11 +74,11 @@ public class Shooter {
         if (RobotConstants.Shoot.USE_DUAL_FLYWHEEL) {
             secondary = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.FLYWHEEL_2);
             configure(secondary);
-            // Opposed flywheels must counter-rotate to throw the ball forward, so this is always
-            // the opposite of whatever the primary ended up as.
-            secondary.setDirection(RobotConstants.Shoot.REVERSE_FLYWHEEL
-                    ? DcMotorSimple.Direction.FORWARD
-                    : DcMotorSimple.Direction.REVERSE);
+            // Both motors drive the SAME shaft, so the second motor's direction depends only on
+            // how it is mounted. Set from RobotConstants (found with T13 Stage 1), never assumed.
+            secondary.setDirection(RobotConstants.Shoot.REVERSE_FLYWHEEL_2
+                ? DcMotorSimple.Direction.REVERSE
+                : DcMotorSimple.Direction.FORWARD);
         } else {
             secondary = null;
         }

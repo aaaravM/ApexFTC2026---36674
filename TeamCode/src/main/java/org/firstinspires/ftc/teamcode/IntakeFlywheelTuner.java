@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode;
 
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 
@@ -15,6 +14,11 @@ import org.firstinspires.ftc.teamcode.util.Ballistics;
 /**
  * Your intake + flywheel test, but with the flywheel on <b>closed-loop RPM</b> instead of
  * {@code setPower(1.0)} -- and with telemetry that tells you how far the ball will actually go.
+ *
+ * <p><b>NOTE (Nov 2026):</b> the shooter is now TWO 6000 RPM motors on one shaft, geared 2:1 down,
+ * and the side intake servos were removed. RPM here is FLYWHEEL RPM. The 1:1 / "do not belt it"
+ * reasoning below predates that change. Do not run this until T13 Stage 1 has confirmed
+ * REVERSE_FLYWHEEL_2, or the two shooter motors may fight.
  *
  * <h2>Why not just setPower(1.0)?</h2>
  * Three reasons, in increasing order of how much they will cost you:
@@ -60,8 +64,6 @@ import org.firstinspires.ftc.teamcode.util.Ballistics;
 public class IntakeFlywheelTuner extends LinearOpMode {
 
     private DcMotorEx intakeMain;
-    private CRServo leftIntake;
-    private CRServo rightIntake;
     private Shooter shooter;
 
     /** Muzzle height above the floor, inches. MEASURE THIS on your robot. */
@@ -69,22 +71,13 @@ public class IntakeFlywheelTuner extends LinearOpMode {
 
     @Override
     public void runOpMode() {
-        intakeMain  = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.INTAKE);
-        leftIntake  = hardwareMap.get(CRServo.class, RobotConstants.Names.INTAKE_SERVO_L);
-        rightIntake = hardwareMap.get(CRServo.class, RobotConstants.Names.INTAKE_SERVO_R);
+        intakeMain = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.INTAKE);
 
         // Set the run mode EXPLICITLY. It is sticky in the hub across OpModes until a power cycle,
         // so a tuning OpMode that left this in RUN_USING_ENCODER would change how setPower behaves
         // here, with nothing on screen to explain why.
         intakeMain.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
         intakeMain.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
-
-        // Resolve the servo-inversion inconsistency between your two files ONE way, here: use
-        // setDirection, then always send both servos the same power. Your other test negates the
-        // right servo's power instead; both work alone, but doing it in two different places is how
-        // you end up inverting it twice.
-        leftIntake.setDirection(CRServo.Direction.FORWARD);
-        rightIntake.setDirection(CRServo.Direction.REVERSE);
 
         shooter = new Shooter(hardwareMap);
 
@@ -115,19 +108,13 @@ public class IntakeFlywheelTuner extends LinearOpMode {
             }
             squareWas = gamepad1.square;
 
-            // --- intake (your bindings) -----------------------------------------------------
+            // --- intake (main roller only; side servos were removed) -----------------------
             if (gamepad1.cross) {
                 intakeMain.setPower(1.0);
-                leftIntake.setPower(1.0);
-                rightIntake.setPower(1.0);
             } else if (gamepad1.triangle) {
                 intakeMain.setPower(-1.0);
-                leftIntake.setPower(-1.0);
-                rightIntake.setPower(-1.0);
             } else {
                 intakeMain.setPower(0.0);
-                leftIntake.setPower(0.0);
-                rightIntake.setPower(0.0);
             }
 
             // --- flywheel -------------------------------------------------------------------
@@ -144,31 +131,31 @@ public class IntakeFlywheelTuner extends LinearOpMode {
             telemetry.addData("Commanded", "%.0f rpm   (dpad up/down 100, left/right 25)", commandedRpm);
             telemetry.addData("Ramping to", "%.0f rpm", shooter.getCommandedRpm());
             telemetry.addData("Actual", "%.0f rpm  (averaged over %d samples)",
-                    actualRpm, RobotConstants.Shoot.RPM_SAMPLE_COUNT);
+                actualRpm, RobotConstants.Shoot.RPM_SAMPLE_COUNT);
             telemetry.addData("Error", "%+.0f rpm", shooter.getRpmError());
             telemetry.addData("State", shooter.isAtSpeed() ? ">>> READY -- FEED A BALL <<<"
-                    : (gamepad1.circle ? "spinning up" : "hold CIRCLE to spin"));
+                : (gamepad1.circle ? "spinning up" : "hold CIRCLE to spin"));
             telemetry.addData("Current", "%.2f A   (9.2 A = stall)", shooter.getCurrentAmps());
 
             telemetry.addLine();
             telemetry.addLine("=== WHAT THIS RPM SHOULD DO ===");
             telemetry.addData("ball exit speed", "%.0f in/s  (%.1f m/s)",
-                    muzzleSpeed, muzzleSpeed * 0.0254);
+                muzzleSpeed, muzzleSpeed * 0.0254);
             telemetry.addData("flat off a table", "%.0f in from a %.0f in height",
-                    Ballistics.flatShotRangeIn(muzzleSpeed, MUZZLE_HEIGHT_IN), MUZZLE_HEIGHT_IN);
+                Ballistics.flatShotRangeIn(muzzleSpeed, MUZZLE_HEIGHT_IN), MUZZLE_HEIGHT_IN);
 
             // Reachable range at the configured hood angle, drag-free. Compare against where the
             // ball actually lands -- the difference is drag plus efficiency error.
             Ballistics.Solution solution = Ballistics.solve(
-                    0, 0, MUZZLE_HEIGHT_IN,
-                    estimateRangeForRpm(actualRpm, ballType), 0, 36.0,
-                    0, 0, 0, ballType);
+                0, 0, MUZZLE_HEIGHT_IN,
+                estimateRangeForRpm(actualRpm, ballType), 0, 36.0,
+                0, 0, 0, ballType);
             telemetry.addLine(String.format("at a %.0f deg hood:",
-                    RobotConstants.Shoot.LAUNCH_PITCH_DEG));
+                RobotConstants.Shoot.LAUNCH_PITCH_DEG));
             telemetry.addData("  reaches about", "%.0f in to a 36 in CELL",
-                    estimateRangeForRpm(actualRpm, ballType));
+                estimateRangeForRpm(actualRpm, ballType));
             telemetry.addData("  flight time", solution.valid
-                    ? String.format("%.2f s", solution.flightTimeSec) : solution.failReason);
+                ? String.format("%.2f s", solution.flightTimeSec) : solution.failReason);
 
             telemetry.addLine();
             telemetry.addLine("The game needs 1600-2900 rpm. If you are at 6000,");
@@ -180,8 +167,6 @@ public class IntakeFlywheelTuner extends LinearOpMode {
 
         shooter.stop();
         intakeMain.setPower(0);
-        leftIntake.setPower(0);
-        rightIntake.setPower(0);
     }
 
     /**
@@ -201,6 +186,6 @@ public class IntakeFlywheelTuner extends LinearOpMode {
         double discriminant = 1 - 2 * Ballistics.G_IN_S2 * h / (vSin * vSin);
         if (discriminant < 0) return 0;       // cannot reach that height at all
         return (v * v * Math.sin(2 * theta)) / (2 * Ballistics.G_IN_S2)
-                * (1 + Math.sqrt(discriminant));
+            * (1 + Math.sqrt(discriminant));
     }
 }
