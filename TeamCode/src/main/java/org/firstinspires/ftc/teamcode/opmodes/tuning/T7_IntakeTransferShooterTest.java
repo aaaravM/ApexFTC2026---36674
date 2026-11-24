@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.opmodes.tuning;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -10,23 +9,21 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import org.firstinspires.ftc.teamcode.RobotConstants;
 
 /**
- * Bench test for intake, transfer and flywheel together.
+ * Bench test for intake (main roller), transfer and flywheel together.
  * Self-contained: drives the hardware directly using RobotConstants names.
  */
 @TeleOp(name = "Intake + Transfer + Shooter Test", group = "Test")
 public class T7_IntakeTransferShooterTest extends OpMode {
 
-  private static final double TICKS_PER_REV = RobotConstants.Shoot.FLYWHEEL_TICKS_PER_REV; // 28
-  private static final double SERVO_POWER = 1.0;
+  private static final double TICKS_PER_REV = RobotConstants.Shoot.FLYWHEEL_TICKS_PER_REV;
   private static final double REVERSE_FLYWHEEL_POWER = 0.3;  // slow, for clearing jams
   private static final double RPM_STEP = 25;
 
   private DcMotorEx intakeMain, transfer, flywheel;
-  private CRServo leftServo, rightServo;
 
   private double intakePower = 0.8;
   private double transferSpeed = 1.0;
-  private double targetRpm = 2500;   // flywheel RPM (2:1 gearing); tune with R1/L1
+  private double targetRpm = 2500;   // flywheel RPM (2:1 gearing); tune with the bumpers
 
   private boolean prevUp, prevDown, prevLeft, prevRight, prevRB, prevLB;
 
@@ -35,11 +32,8 @@ public class T7_IntakeTransferShooterTest extends OpMode {
 
   @Override
   public void init() {
-    // ---- Intake (from the Intake + Transfer test on the rewired robot) ----
+    // ---- Intake (main roller only) ----
     intakeMain = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.INTAKE);
-    leftServo  = hardwareMap.get(CRServo.class, RobotConstants.Names.INTAKE_SERVO_L);
-    rightServo = hardwareMap.get(CRServo.class, RobotConstants.Names.INTAKE_SERVO_R);
-    rightServo.setDirection(DcMotorSimple.Direction.REVERSE); // mirrored servo
 
     // ---- Transfer ----
     transfer = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.FEEDER);
@@ -74,13 +68,11 @@ public class T7_IntakeTransferShooterTest extends OpMode {
     prevRB = gamepad1.right_bumper;  prevLB = gamepad1.left_bumper;
 
     // ---- Intake: Cross = in, Circle = out ----
-    double ip = 0, sp = 0;
+    double ip = 0;
     String intakeState = "stopped";
-    if (gamepad1.a)      { ip =  intakePower; sp =  SERVO_POWER; intakeState = "IN"; }
-    else if (gamepad1.b) { ip = -intakePower; sp = -SERVO_POWER; intakeState = "OUT"; }
+    if (gamepad1.a)      { ip =  intakePower; intakeState = "IN"; }
+    else if (gamepad1.b) { ip = -intakePower; intakeState = "OUT"; }
     intakeMain.setPower(ip);
-    leftServo.setPower(sp);
-    rightServo.setPower(sp);
 
     // ---- Transfer: Square = up to flywheel, Triangle = back ----
     double tp = 0;
@@ -127,8 +119,6 @@ public class T7_IntakeTransferShooterTest extends OpMode {
   @Override
   public void stop() {
     intakeMain.setPower(0);
-    leftServo.setPower(0);
-    rightServo.setPower(0);
     transfer.setPower(0);
     flywheel.setPower(0);
   }

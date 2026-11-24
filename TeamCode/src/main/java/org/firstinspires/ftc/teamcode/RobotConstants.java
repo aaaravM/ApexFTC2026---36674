@@ -80,8 +80,6 @@ public final class RobotConstants {
 
         // -- Intake / sorting -- (existing config names)
         public static final String INTAKE        = "intakemain";
-        public static final String INTAKE_SERVO_L = "leftintake";
-        public static final String INTAKE_SERVO_R = "rightintake";
         public static final String BALL_COLOR    = "ball_color";   // REV Color Sensor V3 in the hopper throat
 
         // -- Vision --

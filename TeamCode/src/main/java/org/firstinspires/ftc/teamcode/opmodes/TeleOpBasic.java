@@ -2,7 +2,6 @@ package org.firstinspires.ftc.teamcode.opmodes;
 
 import com.qualcomm.robotcore.eventloop.opmode.OpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
-import com.qualcomm.robotcore.hardware.CRServo;
 import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
@@ -10,33 +9,29 @@ import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import org.firstinspires.ftc.teamcode.RobotConstants;
 
 /**
- * Match TeleOp for the robot as it is today: drivetrain, intake, transfer, flywheel.
+ * Match TeleOp for the robot as it is today: drivetrain, intake (main roller), transfer, flywheel.
  * No turret / camera / ball sorter (those belong to TeleOpMain).
  *
  * Gamepad 1 drives (robot-centric). Gamepad 2 runs the mechanisms.
- * Feeding is gated on flywheel speed, so each ball waits for the flywheel to recover.
  */
 @TeleOp(name = "TeleOp Basic", group = "Match")
 public class TeleOpBasic extends OpMode {
 
   // ---- Tunables ----
-  private static final double TICKS_PER_REV = RobotConstants.Shoot.FLYWHEEL_TICKS_PER_REV; // 28
+  private static final double TICKS_PER_REV = RobotConstants.Shoot.FLYWHEEL_TICKS_PER_REV;
   private static final double INTAKE_POWER = 0.8;
-  private static final double SERVO_POWER = 1.0;
   private static final double TRANSFER_POWER = 1.0;
   private static final double RPM_STEP = 25;
 
   // ---- Hardware ----
   private DcMotorEx frontLeft, frontRight, backLeft, backRight;
   private DcMotorEx intakeMain, transfer, flywheel;
-  private CRServo leftServo, rightServo;
 
   // ---- State ----
   private boolean flywheelOn = false;
-  private double targetRpm = 2500;   // flywheel RPM (2:1 gearing); tune with R1/L1
+  private double targetRpm = 2500;   // flywheel RPM (2:1 gearing); adjust with gamepad 2 bumpers
   private boolean wasReady = false;
   private boolean prevR2, prevRB, prevLB;
-
   private double transferSpeed = TRANSFER_POWER;   // adjustable with gamepad 2 D-pad left/right
   private boolean prev2Left, prev2Right;
 
@@ -48,11 +43,8 @@ public class TeleOpBasic extends OpMode {
     backLeft   = initDrive(RobotConstants.Names.BACK_LEFT,   RobotConstants.Drive.REVERSE_BACK_LEFT);
     backRight  = initDrive(RobotConstants.Names.BACK_RIGHT,  RobotConstants.Drive.REVERSE_BACK_RIGHT);
 
-    // ---- Intake ----
+    // ---- Intake (main roller only) ----
     intakeMain = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.INTAKE);
-    leftServo  = hardwareMap.get(CRServo.class, RobotConstants.Names.INTAKE_SERVO_L);
-    rightServo = hardwareMap.get(CRServo.class, RobotConstants.Names.INTAKE_SERVO_R);
-    rightServo.setDirection(DcMotorSimple.Direction.REVERSE); // mirrored servo
 
     // ---- Transfer ----
     transfer = hardwareMap.get(DcMotorEx.class, RobotConstants.Names.FEEDER);
@@ -100,7 +92,6 @@ public class TeleOpBasic extends OpMode {
     double bl = axial - lateral + yaw;
     double br = axial + lateral - yaw;
 
-    // Keep the ratios when any wheel would exceed full power
     double max = Math.max(1.0, Math.max(Math.max(Math.abs(fl), Math.abs(fr)),
         Math.max(Math.abs(bl), Math.abs(br))));
     frontLeft.setPower(fl / max * scale);
@@ -136,21 +127,19 @@ public class TeleOpBasic extends OpMode {
     wasReady = ready;
 
     // ---- Intake: Cross = in, Circle = out ----
-    double ip = 0, sp = 0;
+    double ip = 0;
     String intakeState = "stopped";
-    if (gamepad2.a)      { ip =  INTAKE_POWER; sp =  SERVO_POWER; intakeState = "IN"; }
-    else if (gamepad2.b) { ip = -INTAKE_POWER; sp = -SERVO_POWER; intakeState = "OUT"; }
+    if (gamepad2.a)      { ip =  INTAKE_POWER; intakeState = "IN"; }
+    else if (gamepad2.b) { ip = -INTAKE_POWER; intakeState = "OUT"; }
     intakeMain.setPower(ip);
-    leftServo.setPower(sp);
-    rightServo.setPower(sp);
 
-    // ---- Transfer speed: gamepad 2 D-pad right/left, 10% per press (10% to 100%) ----
+    // ---- Transfer speed: D-pad right/left, 10% per press (10% to 100%) ----
     if (gamepad2.dpad_right && !prev2Right) transferSpeed = Math.min(1.0, transferSpeed + 0.1);
     if (gamepad2.dpad_left && !prev2Left)   transferSpeed = Math.max(0.1, transferSpeed - 0.1);
     prev2Right = gamepad2.dpad_right;
     prev2Left = gamepad2.dpad_left;
 
-    // ---- Transfer: Square = up, Triangle = back (no longer gated on the flywheel) ----
+    // ---- Transfer: Square = up, Triangle = back ----
     double tp = 0;
     String transferState = "holding";
     if (gamepad2.y) {
@@ -179,8 +168,6 @@ public class TeleOpBasic extends OpMode {
     backLeft.setPower(0);
     backRight.setPower(0);
     intakeMain.setPower(0);
-    leftServo.setPower(0);
-    rightServo.setPower(0);
     transfer.setPower(0);
     flywheel.setPower(0);
   }
