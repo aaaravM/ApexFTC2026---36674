@@ -101,7 +101,7 @@ public class AimController {
         }
 
         // Muzzle position in field coordinates. The muzzle is offset from the tracking point, and
-        // at typical turret offsets that is a couple of degrees of aim at mid range -- worth doing.
+        // at typical turret offsets that is a couple of degrees of aim at mid-range -- worth doing.
         double heading = odometry.getHeadingRad();
         double cos = Math.cos(heading);
         double sin = Math.sin(heading);
@@ -144,7 +144,7 @@ public class AimController {
     public String getReadinessText() {
         if (!aimingEnabled) return "AIM OFF";
         // An unidentified ball has no valid RPM, so firing it is a guaranteed miss that will get
-        // blamed on the ballistics rather than on the colour sensor.
+        // blamed on the ballistics rather than on the color sensor.
         if (!assumedBall.canFire()) return "BALL NOT IDENTIFIED -- will not fire";
         if (!hiveTracker.hasTarget()) return "NO TARGET";
         if (!solution.valid) return "NO SOLUTION: " + solution.failReason;
