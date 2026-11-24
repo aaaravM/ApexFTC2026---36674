@@ -46,6 +46,10 @@ public final class RobotConstants {
         /** Kicker servo: pushes balls into the flywheel. goBILDA Dual Mode 300-deg torque servo, POSITION mode. */
         public static final String KICKER        = "kicker";
 
+        /** Turret: two continuous goBILDA Dual Mode Speed servos, Expansion Hub servo 4 and 5. */
+        public static final String TURRET_1      = "turret1";
+        public static final String TURRET_2      = "turret2";
+
         /**
          * The goBILDA Pinpoint, as it is ACTUALLY named in the team's robot configuration.
          *
