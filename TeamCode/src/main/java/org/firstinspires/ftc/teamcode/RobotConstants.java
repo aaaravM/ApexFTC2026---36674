@@ -443,7 +443,22 @@ public final class RobotConstants {
          * reduction over two. At G=5, full +/-170 deg of travel is 4.7 turns of the motor output
          * shaft, so route the turret wiring with a service loop or it will tear out.
          */
-        public static final double TICKS_PER_RAD = 370.84;    // 85.5777 * G, with G = 13/3 = 4.3333
+        // 982.82 = 1425.06 * (65/15) / (2*pi)
+        //
+        // The turret motor is the goBILDA 5203 **117 RPM (50.9:1)** unit, whose encoder gives
+        // 1425.06 counts per output revolution -- NOT the 312 RPM (19.2:1) unit's 537.69. Through
+        // the 15:65 gear reduction (4.3333:1) that is 982.82 ticks per radian of turret rotation.
+        //
+        // The previous value, 370.84, was derived from 537.69 and is wrong by a factor of 2.65034.
+        // A turret using it rotates only 37.7% of the commanded angle, so it reaches just 64.1
+        // degrees of real travel at the +/-170 degree limits and never acquires a target. This gates
+        // every auto-aim test, which is why it is fixed here rather than left to the merge.
+        //
+        // CONFIRM ON THE ROBOT: zero the turret, rotate exactly 90 degrees against a protractor,
+        // and expect ~1544 ticks. Do it in both directions -- the difference is backlash.
+        // CONFIRM THE RATIO TOO: count the teeth. 65/15 traces only to a chat message, and 982.82
+        // depends entirely on it.
+        public static final double TICKS_PER_RAD = 982.82;
 
         /** Mechanical travel limits in radians, relative to "straight forward" = 0. */
         public static final double MIN_ANGLE_RAD = Math.toRadians(-170);

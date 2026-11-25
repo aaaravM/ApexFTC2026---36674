@@ -72,6 +72,16 @@ and an offset from the robot's tracking point.
 
 import math
 
+# Minimum gap between two ball types' predicted radii, in pixels, for a type call to be trusted.
+#
+# 4 px, not 1.5. Radius measurement noise is about sigma = 1 px -- set by where the threshold cuts
+# the ball's soft shaded edge, plus the contact-shadow bias. A 1.5 px threshold is ~1.5 sigma, i.e.
+# roughly a one-in-four chance of being wrong at the boundary WHILE REPORTING IT AS TRUSTWORTHY,
+# which is worse than useless: a confident wrong answer gets acted on, an admitted unknown falls
+# back to the intake colour sensor. Keep this in step with
+# BallGeometry.MIN_TYPE_SEPARATION_PX on the Java side.
+MIN_TYPE_SEPARATION_PX = 4.0
+
 
 class CameraPose:
     """Where the lens is and where it points.
@@ -279,10 +289,13 @@ def classify_by_radius(u, v, radius_px, intr, pose, candidates):
     if not preds:
         return None
 
+    # Sort on ABSOLUTE pixel difference, not relative: radius noise is roughly constant in pixels,
+    # and dividing by the prediction would systematically favour the larger candidate.
     preds.sort(key=lambda p: p[4])
     name, D, rng, pred, err = preds[0]
 
-    separation = abs(preds[0][3] - preds[1][3]) if len(preds) > 1 else float("inf")
+    # Gap to the NEAREST other prediction -- a property of the geometry, not of this measurement.
+    separation = min((abs(pred - p[3]) for p in preds[1:]), default=float("inf"))
     gp = ground_plane_position(u, v, intr, pose, D)
     bx, by, _ = gp
 
@@ -296,7 +309,7 @@ def classify_by_radius(u, v, radius_px, intr, pose, candidates):
         "predicted_radius_px": pred,
         "radius_error_px": err,
         "separation_px": separation,
-        "type_trustworthy": separation >= 1.5,   # below this, size cannot separate the two
+        "type_trustworthy": separation >= MIN_TYPE_SEPARATION_PX,
         "all": [{"type": p[0], "range_in": p[2], "predicted_radius_px": p[3]} for p in preds],
     }
 

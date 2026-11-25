@@ -65,6 +65,7 @@ import numpy as np
 
 from ball_geometry import (
     ground_plane_position, predicted_radius_px, apparent_size_ground_range,
+    MIN_TYPE_SEPARATION_PX,
 )
 
 POLLEN_D = 2.8
@@ -145,7 +146,7 @@ class Detection:
     @property
     def type_trustworthy(self):
         """False when the two ball types are too similar in apparent size to tell apart here."""
-        return self.separation_px >= 1.5
+        return self.separation_px >= MIN_TYPE_SEPARATION_PX
 
     def __repr__(self):
         return ("<%s %s r=%.1fpx at (%.1f, %.1f) range %.1f in bearing %+.1f deg%s>"
@@ -273,14 +274,25 @@ def classify_candidate(u, v, radius_px, circ, intr, pose, p, candidates=DEFAULT_
         pred = predicted_radius_px(rng, intr, pose, D)
         if pred is None or pred <= 0:
             return None, "no predicted radius"
-        scored.append((name, D, bx, by, rng, pred, abs(pred - radius_px) / pred))
+        scored.append((name, D, bx, by, rng, pred,
+                       abs(pred - radius_px) / pred,     # relative, for the gate
+                       abs(pred - radius_px)))           # absolute, for choosing the type
 
     if not scored:
         return None, "no candidate type"
 
-    scored.sort(key=lambda s: s[6])
-    name, D, bx, by, rng, pred, relerr = scored[0]
-    separation = abs(scored[0][5] - scored[1][5]) if len(scored) > 1 else float("inf")
+    # Choose on ABSOLUTE pixel difference. Relative error would systematically favour the larger
+    # candidate -- the same absolute miss is a smaller fraction of a bigger radius -- which stacks
+    # on top of the contact-shadow bias and makes everything a NECTAR. The GATE below stays
+    # relative, which is right for "is this plausibly a ball at all".
+    scored.sort(key=lambda s: s[7])
+    name, D, bx, by, rng, pred, relerr, _abserr = scored[0]
+
+    # Separation is how far the chosen prediction sits from the NEAREST other prediction: a
+    # property of the geometry, not of this measurement. Below ~1.5 px the types are physically
+    # indistinguishable here however good the detector is.
+    others = [s[5] for s in scored[1:]]
+    separation = min((abs(pred - o) for o in others), default=float("inf"))
 
     # FILTER 2: the radius must be plausible for SOME real ball at the range the floor implies.
     if relerr > p.radius_tol_frac:
