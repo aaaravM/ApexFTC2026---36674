@@ -112,3 +112,5 @@ tools/vision/captures/
 tools/vision/dataset/
 tools/vision/calibration/*.png
 tools/vision/calibration/*.npz
+__pycache__/
+*.pyc
