@@ -13,9 +13,12 @@ import org.opencv.core.Mat;
 import org.opencv.core.MatOfPoint;
 import org.opencv.core.Point;
 import org.opencv.core.Rect;
+import org.opencv.imgcodecs.Imgcodecs;
 import org.opencv.imgproc.Imgproc;
 import org.opencv.imgproc.Moments;
 
+import java.io.File;
+import java.io.FileOutputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -110,15 +113,45 @@ public class MonoBallProcessor implements VisionProcessor {
      * misclassified every POLLEN as NECTAR and rejected real balls as "matching no ball at this
      * range".
      *
-     * <p>To measure it properly: put a ball at a tape-measured distance, read the radius this
-     * processor reports, compare against {@link BallGeometry#predictedRadiusPx} for the true range,
-     * and set this to the difference. It depends on real lighting, the real floor and the real ball
-     * finish, so it must come from footage.
+     * <p>To measure it properly: dump frames with T15 (press X), pull them, and run
+     * {@code tools/vision/tune_from_dump.py --sweep} against tape-measured truth. It fits this
+     * value and -- more usefully -- tells you whether one value fits every distance. If it does
+     * not, the focal length is wrong and no amount of bias tuning will help.
+     *
+     * <h3>It is not actually a constant, and that is why the gate has a pixel term</h3>
+     * Measured across range on synthetic frames, the ratio of measured to true radius runs about
+     * 1.20 at 20 in, rises to 1.38 around 56-84 in, then COLLAPSES to 1.03 past 100 in. The cause
+     * is physical: the shadow crescent stops being thick enough to survive morphological opening and
+     * drops out of the blob entirely. A linear fit over the whole range gives
+     * {@code r_meas = 1.209 * r_true + 0.81 px} at 1.16 px rms, barely better than fractional-only
+     * at 1.23 px -- so the constant term is not worth carrying, but neither model tracks the real
+     * curve. 0.20 is the fractional-only best fit. The residual is absorbed by
+     * {@link #RADIUS_TOL_PX}.
      */
-    public static double SHADOW_BIAS_FRAC = 0.16;
+    public static double SHADOW_BIAS_FRAC = 0.20;
 
-    /** How far the measured radius may sit from a type's predicted radius, as a fraction. */
+    /**
+     * Proportional part of the accept/reject gate.
+     *
+     * <p>Paired with {@link #RADIUS_TOL_PX}; neither works alone. See that field for why.
+     */
     public static double RADIUS_TOL_FRAC = 0.22;
+
+    /**
+     * CONSTANT part of the accept/reject gate, in pixels. The gate is
+     * {@code |measured - predicted| <= RADIUS_TOL_PX + RADIUS_TOL_FRAC * predicted}.
+     *
+     * <p>A purely fractional tolerance is the wrong shape for this measurement. Radius noise is
+     * roughly constant in PIXELS -- it comes from where the threshold lands on the ball's soft
+     * shaded edge -- so a fixed fraction is far too tight far away and needlessly loose up close:
+     * one pixel is 3% of a 30 px near ball but 20% of a 5 px far one. With a fraction-only gate the
+     * detector loses distant balls while waving through nonsense nearby, and dropping the farthest
+     * detection is exactly the symptom that showed up in testing.
+     *
+     * <p>The pixel term also has to absorb the range-dependent part of the shadow bias described at
+     * {@link #SHADOW_BIAS_FRAC}, which no single bias value can remove.
+     */
+    public static double RADIUS_TOL_PX = 2.0;
 
     /** Beyond this, ignore detections. Rows just below the horizon give absurd ranges. */
     public static double MAX_RANGE_IN = 160.0;
@@ -200,7 +233,37 @@ public class MonoBallProcessor implements VisionProcessor {
     // State
     // =============================================================================================
 
+    /**
+     * Where candidates died, in pipeline order. Published every frame.
+     *
+     * <h3>Why a per-stage histogram and not just a count</h3>
+     * "It sees nothing" is the failure you will actually hit, and it has half a dozen unrelated
+     * causes that look identical from the Driver Station. The stage that ate everything tells you
+     * which one it is, in one glance:
+     * <ul>
+     *   <li>{@code contours} zero -- nothing reached the shape tests at all. Thresholds, lighting,
+     *       or the lens cap. Not a geometry problem.</li>
+     *   <li>{@code notRound} high -- blobs exist but are not circular. Usually the ball is welded to
+     *       its shadow, or two balls merged, or ADAPTIVE_BLOCK is smaller than a ball.</li>
+     *   <li>{@code aboveHorizon} high -- the camera is aimed too high, or the pitch sign is wrong.
+     *       Look at where the horizon line is drawn on the stream.</li>
+     *   <li>{@code radiusMismatch} high -- the blobs are the wrong SIZE for where they appear. This
+     *       is almost always a wrong focal length or a wrong SHADOW_BIAS_FRAC, not a threshold
+     *       problem. Calibrate before touching thresholds.</li>
+     *   <li>{@code tooFar} high -- blobs sitting just below the horizon, which back-project to
+     *       enormous ranges. Expected; that is what MAX_RANGE_IN is for.</li>
+     * </ul>
+     */
+    public static final String[] STAGE_NAMES = {
+            "contours", "tiny", "notRound", "lowFill", "radiusBounds",
+            "aboveHorizon", "tooFar", "radiusMismatch", "inconsistent", "accepted",
+    };
+    private static final int S_CONTOURS = 0, S_TINY = 1, S_NOTROUND = 2, S_LOWFILL = 3,
+            S_RADIUS_BOUNDS = 4, S_HORIZON = 5, S_TOOFAR = 6, S_MISMATCH = 7,
+            S_INCONSISTENT = 8, S_ACCEPTED = 9;
+
     private volatile List<Sighting> sightings = Collections.emptyList();
+    private volatile int[] stageCounts = new int[STAGE_NAMES.length];
     private volatile int lastBlobCount = 0;
     private volatile int lastRejectCount = 0;
     private volatile String lastRejectReason = "";
@@ -329,17 +392,46 @@ public class MonoBallProcessor implements VisionProcessor {
             calibrationSource = String.format("SDK calibration, fx=%.1f at %dx%d",
                     calibration.focalLengthX, width, height);
         } else {
-            // Fall back to RobotConstants, scaled from its reference resolution to this one.
-            intrinsics = new BallGeometry.Intrinsics(
+            // ---- No SDK calibration. Choose the LEAST WRONG fallback, and say which. ----
+            //
+            // RobotConstants is the right source ONCE it holds real numbers for this camera. Until
+            // then it holds Logitech C270 values (fx = 822.317 at 640 wide), and scaling those to
+            // 1280 gives 1645 against a true value near 914 -- every range 80% too long, silently.
+            // That is worse than no fallback at all, because it looks like it is working.
+            //
+            // So: decide whether RobotConstants is plausibly describing THIS lens, by comparing it
+            // against what the datasheet predicts. Within 25% means somebody has calibrated and the
+            // measured numbers win. Outside 25% means it is still the C270 and the lens spec is the
+            // better guess.
+            String reason = calibration == null ? "null"
+                    : calibration.isFake() ? "fake" : "degenerate";
+
+            BallGeometry.Intrinsics fromConstants = new BallGeometry.Intrinsics(
                     RobotConstants.Camera.FX, RobotConstants.Camera.FY,
                     RobotConstants.Camera.CX, RobotConstants.Camera.CY,
                     RobotConstants.Camera.CAL_WIDTH, RobotConstants.Camera.CAL_HEIGHT)
                     .scaledTo(width, height);
+
+            double specFx = expectedFxForWidth(width);
+            double ratio = fromConstants.fx / specFx;
+
+            if (ratio > 0.75 && ratio < 1.25) {
+                intrinsics = fromConstants;
+                calibrationSource = String.format(
+                        "no SDK calibration (%s); RobotConstants fx=%.1f scaled to %dx%d "
+                                + "(%+.0f%% vs lens spec %.0f -- plausible, using it)",
+                        reason, intrinsics.fx, width, height, 100 * (ratio - 1), specFx);
+            } else {
+                // Principal point at the image centre: a real one is usually within a few percent
+                // of it, and the centre is a far better guess than another camera's measured value.
+                intrinsics = new BallGeometry.Intrinsics(
+                        specFx, specFx, width / 2.0, height / 2.0, width, height);
+                calibrationSource = String.format(
+                        "no SDK calibration (%s); RobotConstants fx=%.1f is %+.0f%% off the lens "
+                                + "spec so it is NOT this camera -- using datasheet fx=%.1f instead",
+                        reason, fromConstants.fx, 100 * (ratio - 1), specFx);
+            }
             calibrationIsFallback = true;
-            calibrationSource = String.format(
-                    "NO SDK CALIBRATION (%s) -- using RobotConstants fx=%.1f scaled to %dx%d",
-                    calibration == null ? "null" : calibration.isFake() ? "fake" : "degenerate",
-                    intrinsics.fx, width, height);
         }
     }
 
@@ -385,10 +477,12 @@ public class MonoBallProcessor implements VisionProcessor {
         List<Sighting> found = new ArrayList<>();
         int blobs = 0, rejects = 0;
         String reason = "";
+        int[] stages = new int[STAGE_NAMES.length];
+        stages[S_CONTOURS] = contours.size();
 
         for (MatOfPoint contour : contours) {
             double area = Imgproc.contourArea(contour);
-            if (area <= 0) { contour.release(); continue; }
+            if (area <= 0) { stages[S_TINY]++; contour.release(); continue; }
 
             org.opencv.core.MatOfPoint2f c2f = new org.opencv.core.MatOfPoint2f(contour.toArray());
             Point enclosingCentre = new Point();
@@ -396,24 +490,26 @@ public class MonoBallProcessor implements VisionProcessor {
             Imgproc.minEnclosingCircle(c2f, enclosingCentre, enclosingRadius);
             c2f.release();
             double er = enclosingRadius[0];
-            if (er <= 0) { contour.release(); continue; }
+            if (er <= 0) { stages[S_TINY]++; contour.release(); continue; }
 
             // Circularity uses the ENCLOSING circle: that is the shape test, and a ball welded to
             // its shadow legitimately is less circular.
             double circ = area / (Math.PI * er * er);
-            if (circ < MIN_CIRCULARITY) { contour.release(); continue; }
+            if (circ < MIN_CIRCULARITY) { stages[S_NOTROUND]++; contour.release(); continue; }
 
             Rect box = Imgproc.boundingRect(contour);
             double fill = box.width * box.height > 0
                     ? area / (double) (box.width * box.height) : 0;
-            if (fill < MIN_FILL) { contour.release(); continue; }
+            if (fill < MIN_FILL) { stages[S_LOWFILL]++; contour.release(); continue; }
 
             // EQUIVALENT-AREA radius, not the enclosing circle. The enclosing circle is set by the
             // single furthest point, so the shadow crescent drags it out directly; area grows far
             // less because the crescent is thin. It also degrades gracefully for a ball clipped at
             // the frame edge, where an enclosing circle goes badly wrong.
             double radius = Math.sqrt(area / Math.PI) * (1.0 - SHADOW_BIAS_FRAC);
-            if (radius < MIN_RADIUS_PX || radius > MAX_RADIUS_PX) { contour.release(); continue; }
+            if (radius < MIN_RADIUS_PX || radius > MAX_RADIUS_PX) {
+                stages[S_RADIUS_BOUNDS]++; contour.release(); continue;
+            }
 
             // CENTROID from moments, not the enclosing-circle centre: the shadow sits below the
             // ball and pulls that centre downward, and a lower image row reads as nearer.
@@ -423,9 +519,10 @@ public class MonoBallProcessor implements VisionProcessor {
             contour.release();
 
             blobs++;
-            Sighting s = classify(u, v, radius, circ, intr, captureTimeNanos);
+            Sighting s = classify(u, v, radius, circ, intr, captureTimeNanos, stages);
             if (s != null) {
                 found.add(s);
+                stages[S_ACCEPTED]++;
             } else {
                 rejects++;
                 reason = lastReason;
@@ -437,15 +534,153 @@ public class MonoBallProcessor implements VisionProcessor {
 
         // One volatile write per frame, of an immutable list: a reader never sees a torn update.
         sightings = Collections.unmodifiableList(found);
+        stageCounts = stages;
         lastBlobCount = blobs;
         lastRejectCount = rejects;
         lastRejectReason = reason;
         lastProcessMs = (System.nanoTime() - t0) / 1e6;
+
+        // After publishing, so the sidecar records THIS frame's own stage counts and sightings.
+        if (dumpRequested) writeDump(intr, found, stages);
+
         return null;
     }
 
     /** Set by {@link #classify} when it returns null, for telemetry. Vision thread only. */
     private String lastReason = "";
+
+    // =============================================================================================
+    // Frame dump
+    // =============================================================================================
+
+    /**
+     * Where dumps go on the Control Hub. Pull them with:
+     * {@code adb pull /sdcard/FIRST/ballcam C:\FTC-backup\ballcam}
+     */
+    public static final String DUMP_DIR = "/sdcard/FIRST/ballcam";
+
+    private volatile boolean dumpRequested = false;
+    private volatile int dumpCount = 0;
+    private volatile String lastDumpPath = "(none)";
+
+    /**
+     * Save the next frame -- the grayscale image, the binary mask, and a sidecar text file -- to
+     * the Hub's storage.
+     *
+     * <h3>Why this exists</h3>
+     * Every tunable in this class was set against SYNTHETIC images. Lambertian shading is not real
+     * shading: it has no scuffed tiles, no venue lighting, no other robot in frame, no IR (this
+     * sensor has no IR filter and is explicitly sensitive to it, so gym lighting and daylight do
+     * not look the way they would on a colour camera). SHADOW_BIAS_FRAC in particular is a
+     * placeholder that cannot be measured any other way.
+     *
+     * <p>So this is the bridge: press a button, get real frames, {@code adb pull} them, and tune
+     * the parameters offline against the actual images. Without it the only way to tune is to stand
+     * at the robot changing numbers and squinting at telemetry, which is slow and does not produce
+     * anything anyone else can check.
+     *
+     * <p>The sidecar matters as much as the image. A frame with no record of the parameters that
+     * produced it is nearly useless -- you cannot tell whether a blob was missed because of the
+     * threshold, the radius gate or the focal length. So every dump records all of it.
+     *
+     * <p>Writing happens on the vision thread and costs a few hundred milliseconds, so it is
+     * strictly a one-shot triggered by hand. Never call it every frame.
+     */
+    public void requestDump() { dumpRequested = true; }
+
+    /** How many frames have been dumped this session. */
+    public int getDumpCount() { return dumpCount; }
+
+    /** Path of the most recent dump, for telemetry. */
+    public String getLastDumpPath() { return lastDumpPath; }
+
+    /** Vision thread only. Best-effort: a failed dump must never take the pipeline down. */
+    private void writeDump(BallGeometry.Intrinsics intr, List<Sighting> found, int[] stages) {
+        dumpRequested = false;
+        try {
+            File dir = new File(DUMP_DIR);
+            if (!dir.exists() && !dir.mkdirs()) {
+                lastDumpPath = "FAILED: cannot create " + DUMP_DIR;
+                return;
+            }
+            String stem = String.format("%s/frame_%03d", DUMP_DIR, dumpCount);
+            Imgcodecs.imwrite(stem + "_gray.png", gray);
+            Imgcodecs.imwrite(stem + "_mask.png", mask);
+
+            StringBuilder sb = new StringBuilder();
+            sb.append("# MonoBallProcessor frame dump ").append(dumpCount).append('\n');
+            sb.append("# Pull with: adb pull ").append(DUMP_DIR).append('\n');
+            sb.append("#\n# Everything needed to reproduce this frame's result offline.\n\n");
+            sb.append("resolution     ").append(intr.width).append('x').append(intr.height)
+              .append('\n');
+            sb.append("fx fy          ").append(fmt(intr.fx)).append(' ').append(fmt(intr.fy))
+              .append('\n');
+            sb.append("cx cy          ").append(fmt(intr.cx)).append(' ').append(fmt(intr.cy))
+              .append('\n');
+            sb.append("hfov deg       ").append(fmt(intr.hfovDeg())).append('\n');
+            sb.append("calibration    ").append(calibrationSource).append('\n');
+            sb.append("cameraHeightIn ").append(fmt(cameraHeightIn)).append('\n');
+            sb.append("pitchDownDeg   ").append(fmt(Math.toDegrees(cameraPitchRad)))
+              .append("   # DOWN-positive\n");
+            sb.append("horizonRow     ").append(fmt(getHorizonRow())).append('\n');
+            sb.append('\n');
+            sb.append("BLUR_KSIZE        ").append(BLUR_KSIZE).append('\n');
+            sb.append("ADAPTIVE_BLOCK    ").append(effectiveBlock)
+              .append(ADAPTIVE_BLOCK == 0 ? "   # auto from width" : "   # override").append('\n');
+            sb.append("ADAPTIVE_C        ").append(ADAPTIVE_C).append('\n');
+            sb.append("MORPH_KSIZE       ").append(MORPH_KSIZE).append('\n');
+            sb.append("MIN_RADIUS_PX     ").append(fmt(MIN_RADIUS_PX)).append('\n');
+            sb.append("MAX_RADIUS_PX     ").append(fmt(MAX_RADIUS_PX)).append('\n');
+            sb.append("MIN_CIRCULARITY   ").append(fmt(MIN_CIRCULARITY)).append('\n');
+            sb.append("MIN_FILL          ").append(fmt(MIN_FILL)).append('\n');
+            sb.append("SHADOW_BIAS_FRAC  ").append(fmt(SHADOW_BIAS_FRAC))
+              .append("   # PLACEHOLDER, measure me\n");
+            sb.append("RADIUS_TOL_FRAC   ").append(fmt(RADIUS_TOL_FRAC)).append('\n');
+            sb.append("MAX_RANGE_IN      ").append(fmt(MAX_RANGE_IN)).append('\n');
+            sb.append("CONSISTENCY_MAX   ").append(fmt(CONSISTENCY_MAX)).append('\n');
+            sb.append('\n');
+            sb.append("stages        ");
+            for (int i = 0; i < stages.length; i++) {
+                if (stages[i] != 0) sb.append(STAGE_NAMES[i]).append('=').append(stages[i])
+                        .append(' ');
+            }
+            sb.append('\n');
+            sb.append("lastReject    ").append(lastReason).append('\n');
+            sb.append("processMs     ").append(fmt(lastProcessMs)).append('\n');
+            sb.append('\n');
+            sb.append("# accepted sightings: u v radiusPx type rangeIn bearingDeg predRadiusPx "
+                    + "consistency\n");
+            for (Sighting s : found) {
+                sb.append("sighting      ")
+                  .append(fmt(s.u)).append(' ').append(fmt(s.v)).append(' ')
+                  .append(fmt(s.radiusPx)).append(' ').append(s.type).append(' ')
+                  .append(fmt(s.rangeIn)).append(' ')
+                  .append(fmt(Math.toDegrees(s.bearingFromAxisRad))).append(' ')
+                  .append(fmt(s.predictedRadiusPx)).append(' ')
+                  .append(fmt(s.consistency)).append('\n');
+            }
+            sb.append('\n');
+            sb.append("# MEASURE THE TRUTH and write it here before sending these files on:\n");
+            sb.append("# truth <rangeInches> <ballType>   (tape-measured, one line per ball)\n");
+
+            FileOutputStream fos = new FileOutputStream(stem + "_info.txt");
+            try {
+                fos.write(sb.toString().getBytes("UTF-8"));
+            } finally {
+                fos.close();
+            }
+
+            lastDumpPath = stem + "_*.png/txt";
+            dumpCount++;
+        } catch (Exception e) {
+            // Never let a dump failure kill the vision thread mid-match.
+            lastDumpPath = "FAILED: " + e.getClass().getSimpleName() + " " + e.getMessage();
+        }
+    }
+
+    private static String fmt(double d) {
+        return Double.isNaN(d) ? "nan" : String.format("%.4f", d);
+    }
 
     /**
      * The three geometric filters, all yaw-independent so none of them needs the turret angle.
@@ -453,7 +688,8 @@ public class MonoBallProcessor implements VisionProcessor {
      * @return a Sighting, or null with {@link #lastReason} set to which filter rejected it
      */
     private Sighting classify(double u, double v, double radiusPx, double circ,
-                              BallGeometry.Intrinsics intr, long captureTimeNanos) {
+                              BallGeometry.Intrinsics intr, long captureTimeNanos,
+                              int[] stages) {
         int bestIdx = -1;
         double bestAbsErr = Double.MAX_VALUE;
         double[] preds = new double[DIAMETERS.length];
@@ -463,8 +699,9 @@ public class MonoBallProcessor implements VisionProcessor {
             BallGeometry.Position p = BallGeometry.groundPlanePositionLensFrame(
                     u, v, intr, cameraPitchRad, cameraHeightIn, DIAMETERS[i]);
             // FILTER 1: above the horizon, so it cannot be a ball resting on the floor.
-            if (p == null) { lastReason = "above horizon"; return null; }
+            if (p == null) { stages[S_HORIZON]++; lastReason = "above horizon"; return null; }
             if (p.rangeIn <= 0 || p.rangeIn > MAX_RANGE_IN) {
+                stages[S_TOOFAR]++;
                 lastReason = String.format("range %.0fin > max %.0f", p.rangeIn, MAX_RANGE_IN);
                 return null;
             }
@@ -482,9 +719,13 @@ public class MonoBallProcessor implements VisionProcessor {
 
         // FILTER 2: the radius must be plausible for SOME real ball at the range the floor implies.
         // This is the strong one -- it is what recovers most of the discrimination colour gave us.
-        if (relErr > RADIUS_TOL_FRAC) {
-            lastReason = String.format("r=%.1fpx matches no ball at %.0fin (pred %.1f, %.0f%% off)",
-                    radiusPx, p.rangeIn, pred, 100 * relErr);
+        double absErr = Math.abs(pred - radiusPx);
+        double allowed = RADIUS_TOL_PX + RADIUS_TOL_FRAC * pred;
+        if (absErr > allowed) {
+            stages[S_MISMATCH]++;
+            lastReason = String.format(
+                    "r=%.1fpx matches no ball at %.0fin (pred %.1f, off by %.1fpx, allowed %.1f)",
+                    radiusPx, p.rangeIn, pred, absErr, allowed);
             return null;
         }
 
@@ -504,6 +745,7 @@ public class MonoBallProcessor implements VisionProcessor {
             if (consistency >= AIRBORNE_MIN) {
                 airborne = true;            // further than the floor allows: not on the floor
             } else if (consistency > CONSISTENCY_MAX || consistency < 1.0 / CONSISTENCY_MAX) {
+                stages[S_INCONSISTENT]++;
                 lastReason = String.format("range methods disagree (floor %.0f, size %.0f)",
                         p.rangeIn, szRange);
                 return null;
@@ -564,6 +806,26 @@ public class MonoBallProcessor implements VisionProcessor {
         List<Sighting> s = sightings;
         return s.isEmpty() ? null : s.get(0);
     }
+
+    /**
+     * Where candidates died last frame, as "name=count", non-zero stages only.
+     *
+     * <p>This is the first thing to read when nothing is detected. See {@link #STAGE_NAMES} for
+     * what each stage means and what it implies about the cause.
+     */
+    public String getStageSummary() {
+        int[] c = stageCounts;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < c.length; i++) {
+            if (c[i] == 0) continue;
+            if (sb.length() > 0) sb.append("  ");
+            sb.append(STAGE_NAMES[i]).append('=').append(c[i]);
+        }
+        return sb.length() == 0 ? "nothing in frame" : sb.toString();
+    }
+
+    /** Raw per-stage counts from the last frame. Indexed as {@link #STAGE_NAMES}. */
+    public int[] getStageCounts() { return stageCounts.clone(); }
 
     /** Round blobs that passed the shape tests last frame, before the geometric filters. */
     public int getBlobCount() { return lastBlobCount; }

@@ -92,8 +92,22 @@ class DetectParams:
     shadow_bias_frac  : fraction subtracted from the measured radius to undo the contact-shadow
                         and morphology inflation. MUST BE RE-MEASURED ON REAL FOOTAGE; the default
                         came from synthetic scenes and is a placeholder, not a measurement.
-    radius_tol_frac   : how far the measured radius may sit from a ball type's predicted radius,
-                        as a fraction. This is filter 2 and it is the most important number here.
+    radius_tol_frac   : proportional part of the accept/reject gate.
+    radius_tol_px     : CONSTANT part of the gate, in pixels. Both are needed.
+
+                        A purely fractional tolerance is the wrong shape. Radius measurement noise
+                        is roughly constant in PIXELS, so a fixed fraction is far too tight at long
+                        range and needlessly loose up close: +/-1 px is 3% of a 30 px near ball but
+                        20% of a 5 px far one. A fraction-only gate therefore throws away distant
+                        balls while waving through nonsense nearby.
+
+                        Measured on synthetic frames, the radius inflation from the contact shadow
+                        is NOT a constant fraction either. The ratio of measured to true radius runs
+                        about 1.20 at 20 in, rises to 1.38 around 56-84 in, then COLLAPSES to 1.03
+                        past 100 in -- because the shadow crescent stops being thick enough to
+                        survive morphological opening and simply drops out of the blob. No single
+                        bias value can track that, which is the real reason the gate needs a pixel
+                        term: it has to absorb a modelling error that genuinely varies with range.
     max_range_in      : beyond this, ignore detections. Rows just below the horizon give absurd
                         ranges, so this gate is required, not optional.
     consistency_max   : reject when the two range methods disagree by more than this factor.
@@ -110,8 +124,9 @@ class DetectParams:
         self.min_circularity = 0.55
         self.min_fill = 0.50
         self.radius_mode = "equivalent"
-        self.shadow_bias_frac = 0.16
+        self.shadow_bias_frac = 0.20
         self.radius_tol_frac = 0.22
+        self.radius_tol_px = 2.0
         self.max_range_in = 160.0
         self.consistency_max = 1.35
         self.airborne_min = 1.35
@@ -295,9 +310,11 @@ def classify_candidate(u, v, radius_px, circ, intr, pose, p, candidates=DEFAULT_
     separation = min((abs(pred - o) for o in others), default=float("inf"))
 
     # FILTER 2: the radius must be plausible for SOME real ball at the range the floor implies.
-    if relerr > p.radius_tol_frac:
+    abserr = abs(pred - radius_px)
+    allowed = p.radius_tol_px + p.radius_tol_frac * pred
+    if abserr > allowed:
         return None, ("radius %.1f px matches no ball at %.0f in (best %s predicts %.1f px, off "
-                      "by %.0f%%)" % (radius_px, rng, name, pred, 100 * relerr))
+                      "by %.1f px, allowed %.1f)" % (radius_px, rng, name, pred, abserr, allowed))
 
     # FILTER 3: do the two independent range methods agree?
     sz = apparent_size_ground_range(radius_px, intr, pose, D)

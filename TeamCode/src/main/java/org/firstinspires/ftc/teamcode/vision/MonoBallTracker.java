@@ -146,6 +146,127 @@ public class MonoBallTracker {
         if (gain != null) gain.setGain(RobotConstants.Camera.GAIN);
     }
 
+    /**
+     * Every webcam in the robot configuration, as "name (serial)".
+     *
+     * <p>A wrong camera name throws at init and reads on the Driver Station like a code fault
+     * rather than a configuration one. Printing the list turns "it crashed" into "ah, it is called
+     * something else" -- which is the single most likely thing to go wrong the first time this is
+     * plugged in.
+     */
+    public static List<String> listWebcams(HardwareMap hardwareMap) {
+        List<String> out = new ArrayList<>();
+        try {
+            for (WebcamName cam : hardwareMap.getAll(WebcamName.class)) {
+                StringBuilder sb = new StringBuilder();
+                for (String n : hardwareMap.getNamesOf(cam)) {
+                    if (sb.length() > 0) sb.append('/');
+                    sb.append(n);
+                }
+                String serial;
+                try {
+                    serial = cam.getSerialNumber().toString();
+                } catch (Exception e) {
+                    serial = "?";
+                }
+                out.add(sb + "  (" + serial + ")");
+            }
+        } catch (Exception e) {
+            out.add("could not enumerate: " + e.getMessage());
+        }
+        return out;
+    }
+
+    /** Resolutions to try, best first. All are real MJPEG modes on the B0332. */
+    public static final int[][] FALLBACK_MODES = {
+            { 1280, 800 },   // native 16:10, 100-120 fps in MJPEG, the only documented FOV
+            { 1280, 720 },
+            { 800, 600 },
+            { 640, 480 },
+            { 320, 240 },
+    };
+
+    /** Result of {@link #openWithFallback}: the tracker, or why every mode failed. */
+    public static final class OpenResult {
+        public final MonoBallTracker tracker;   // null on failure
+        public final String log;                // what was tried, and what happened
+
+        OpenResult(MonoBallTracker tracker, String log) {
+            this.tracker = tracker;
+            this.log = log;
+        }
+
+        public boolean ok() { return tracker != null; }
+    }
+
+    /**
+     * Open the camera, trying each resolution in turn until one actually streams.
+     *
+     * <h3>Why a fallback chain rather than one request</h3>
+     * {@code VisionPortal.build()} returns immediately and opens the camera on a background
+     * thread, so an unsupported resolution does not throw -- the portal simply transitions to
+     * {@code ERROR} a moment later, and an OpMode that never checks sits there with no detections
+     * and no explanation. Worse, a camera that accepts the request and substitutes a different mode
+     * leaves the intrinsics wrong rather than absent.
+     *
+     * <p>So this waits for a definite STREAMING or ERROR for each candidate, closes and moves on if
+     * it failed, and returns a log of exactly what happened. On success the caller should still
+     * compare {@link #getActualResolution()} against what it asked for.
+     *
+     * @param modes      resolutions to try, best first; pass {@link #FALLBACK_MODES} for the default
+     * @param timeoutMs  how long to wait for each candidate to declare itself
+     */
+    public static OpenResult openWithFallback(HardwareMap hardwareMap, String cameraName,
+                                              int[][] modes, double cameraHeightIn,
+                                              double pitchDownDeg, long timeoutMs) {
+        StringBuilder log = new StringBuilder();
+
+        List<String> cams = listWebcams(hardwareMap);
+        log.append("webcams in config: ").append(cams.isEmpty() ? "NONE" : cams.toString())
+           .append('\n');
+
+        for (int[] mode : modes) {
+            int w = mode[0], h = mode[1];
+            MonoBallTracker t = null;
+            try {
+                t = new MonoBallTracker(hardwareMap, cameraName, w, h,
+                        cameraHeightIn, pitchDownDeg);
+                VisionPortal portal = t.getVisionPortal();
+
+                long deadline = System.currentTimeMillis() + timeoutMs;
+                VisionPortal.CameraState state = portal.getCameraState();
+                while (state != VisionPortal.CameraState.STREAMING
+                        && state != VisionPortal.CameraState.ERROR
+                        && System.currentTimeMillis() < deadline) {
+                    try {
+                        Thread.sleep(25);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                    state = portal.getCameraState();
+                }
+
+                if (state == VisionPortal.CameraState.STREAMING) {
+                    log.append(String.format("%dx%d STREAMING -> using it%n", w, h));
+                    return new OpenResult(t, log.toString());
+                }
+                log.append(String.format("%dx%d gave %s, trying next%n", w, h, state));
+                t.close();
+            } catch (Exception e) {
+                log.append(String.format("%dx%d threw %s: %s%n", w, h,
+                        e.getClass().getSimpleName(), e.getMessage()));
+                if (t != null) {
+                    try { t.close(); } catch (Exception ignored) { }
+                }
+            }
+        }
+
+        log.append("every mode failed. Check the camera name above against what this OpMode asks\n");
+        log.append("for, check the USB cable carries data, and check the Hub has power.\n");
+        return new OpenResult(null, log.toString());
+    }
+
     /** One ball, positioned in the ROBOT frame. */
     public static final class Ball {
         public final MonoBallProcessor.Sighting sighting;
