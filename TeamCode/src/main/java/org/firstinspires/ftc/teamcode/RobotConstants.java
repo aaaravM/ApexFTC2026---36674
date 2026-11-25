@@ -135,8 +135,8 @@ public final class RobotConstants {
          *
          * <p>TUNE ME: measure with a ruler first, then refine with {@code T2_PinpointOffsetTuner}.
          */
-        public static final double X_POD_OFFSET_MM = 72.4;
-        public static final double Y_POD_OFFSET_MM = -44.5;
+        public static final double X_POD_OFFSET_MM = 114.3;
+        public static final double Y_POD_OFFSET_MM = -50.8;
 
         /**
          * Which way each pod counts. The X pod must count UP when the robot is pushed FORWARD.
