@@ -23,7 +23,7 @@
         <LynxModule name="Control Hub" port="173">
             <goBILDA5202SeriesMotor  name="rightback"   port="0" />
             <goBILDA5202SeriesMotor  name="rightfront"  port="1" />
-            <goBILDA5202SeriesMotor  name="Flywheel"    port="3" />
+            <goBILDA5202SeriesMotor  name="flywheel"    port="3" />
             <ContinuousRotationServo name="rightintake" port="1" />
 
             <!-- Built-in IMU on bus 0. This is exactly why the Pinpoint cannot go on bus 0. -->

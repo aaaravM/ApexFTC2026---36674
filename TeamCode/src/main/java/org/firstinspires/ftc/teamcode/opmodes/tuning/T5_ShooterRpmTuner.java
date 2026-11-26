@@ -53,6 +53,12 @@ public class T5_ShooterRpmTuner extends LinearOpMode {
     /** Muzzle height above the floor for the flat-shot test, inches. MEASURE THIS. */
     private static final double TABLE_HEIGHT_IN = 36.0;
 
+    /** Fine RPM step, dpad up/down. */
+    private static final double RPM_STEP_FINE = 1.0;
+
+    /** Coarse RPM step, dpad left/right. */
+    private static final double RPM_STEP_COARSE = 100.0;
+
     @Override
     public void runOpMode() {
         Shooter shooter = new Shooter(hardwareMap);
@@ -69,13 +75,20 @@ public class T5_ShooterRpmTuner extends LinearOpMode {
         double computedEfficiency = 0;
 
         boolean upWas = false, downWas = false, lbWas = false, rbWas = false;
+        boolean leftWas = false, rightWas = false;
         boolean aWas = false, xWas = false;
 
         while (opModeIsActive()) {
-            if (gamepad1.dpad_up && !upWas) commandedRpm += 100;
+            // Fine: dpad up/down, 1 rpm. Coarse: dpad left/right, 100 rpm, so you can still get
+            // from 0 to 3000 without 3000 keypresses.
+            if (gamepad1.dpad_up && !upWas) commandedRpm += RPM_STEP_FINE;
             upWas = gamepad1.dpad_up;
-            if (gamepad1.dpad_down && !downWas) commandedRpm = Math.max(0, commandedRpm - 100);
+            if (gamepad1.dpad_down && !downWas) commandedRpm = Math.max(0, commandedRpm - RPM_STEP_FINE);
             downWas = gamepad1.dpad_down;
+            if (gamepad1.dpad_right && !rightWas) commandedRpm += RPM_STEP_COARSE;
+            rightWas = gamepad1.dpad_right;
+            if (gamepad1.dpad_left && !leftWas) commandedRpm = Math.max(0, commandedRpm - RPM_STEP_COARSE);
+            leftWas = gamepad1.dpad_left;
 
             if (gamepad1.right_bumper && !rbWas) measuredRangeIn += 1;
             rbWas = gamepad1.right_bumper;
@@ -97,7 +110,8 @@ public class T5_ShooterRpmTuner extends LinearOpMode {
 
             telemetry.addData("Ball type", "%s  (X to swap)", ballType);
             telemetry.addLine();
-            telemetry.addData("Commanded RPM", "%.0f   (dpad up/down)", commandedRpm);
+            telemetry.addData("Commanded RPM", "%.0f   (dpad up/down %.0f, left/right %.0f)",
+                    commandedRpm, RPM_STEP_FINE, RPM_STEP_COARSE);
             telemetry.addData("Actual RPM", "%.0f", shooter.getCurrentRpm());
             telemetry.addData("Error", "%+.0f", shooter.getRpmError());
             telemetry.addData("State", shooter.isAtSpeed() ? ">>> READY -- FIRE <<<" : "spinning up");

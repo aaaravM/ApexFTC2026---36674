@@ -107,3 +107,10 @@ lint/generated/
 lint/outputs/
 lint/tmp/
 # lint/reports/
+# Vision dev tooling: captured frames and calibration views are big and robot-irrelevant.
+tools/vision/captures/
+tools/vision/dataset/
+tools/vision/calibration/*.png
+tools/vision/calibration/*.npz
+__pycache__/
+*.pyc

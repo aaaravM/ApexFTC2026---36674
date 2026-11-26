@@ -218,14 +218,14 @@ public final class Ballistics {
      * efficiency, therefore different RPM -- which is what the colour sensor is for.
      */
     public static double muzzleSpeedToRpm(double muzzleSpeedIn, BallType ball) {
-        double eff = ball.transferEfficiency > 1e-6 ? ball.transferEfficiency : 0.5;
+        double eff = ball.getTransferEfficiency() > 1e-6 ? ball.getTransferEfficiency() : 0.5;
         double circumference = Math.PI * RobotConstants.Shoot.FLYWHEEL_DIAMETER_IN;
         return 60.0 * muzzleSpeedIn / (eff * circumference);
     }
 
     /** Inverse of {@link #muzzleSpeedToRpm}, for the tuning OpMode. */
     public static double rpmToMuzzleSpeed(double rpm, BallType ball) {
-        double eff = ball.transferEfficiency > 1e-6 ? ball.transferEfficiency : 0.5;
+        double eff = ball.getTransferEfficiency() > 1e-6 ? ball.getTransferEfficiency() : 0.5;
         double circumference = Math.PI * RobotConstants.Shoot.FLYWHEEL_DIAMETER_IN;
         return rpm * eff * circumference / 60.0;
     }

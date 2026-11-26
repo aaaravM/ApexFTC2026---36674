@@ -68,14 +68,17 @@ public final class RobotConstants {
 
         // -- Shooter / turret --
         /**
-         * NOTE THE CAPITAL F. The Robot Configuration has this device as "Flywheel", and
-         * {@code hardwareMap.get} is <b>case-sensitive</b> -- asking for "flywheel" throws
-         * {@code IllegalArgumentException} at init with a message that just says the device is
-         * missing, which sends you looking at wiring rather than at spelling.
+         * All lowercase, on <b>Control Hub motor port 3</b>.
          *
-         * <p>This one is on the <b>Expansion Hub</b>, not the Control Hub. That is fine, but it
-         * means its reads travel over RS485 and cost slightly more latency than a Control Hub port,
-         * which is worth knowing when you start timing shots.
+         * <p>This has now been both spellings: the team's original OnBot code used "Flywheel" on the
+         * Expansion Hub, and after the rewire it is "flywheel" on the Control Hub.
+         * {@code hardwareMap.get} is <b>case-sensitive</b>, and a mismatch throws at init with a
+         * message that only says the device is missing -- which sends you to the wiring rather than
+         * to the spelling. If the shooter ever dies at INIT, check this against the Robot
+         * Configuration before anything else.
+         *
+         * <p>Being on the Control Hub rather than the Expansion Hub is a small win: its reads do not
+         * travel over RS485, so there is slightly less latency in the velocity feedback.
          */
         public static final String FLYWHEEL      = "Flywheel";
         public static final String FLYWHEEL_2    = "flywheel_2";   // set USE_DUAL_FLYWHEEL=false if absent
@@ -254,15 +257,56 @@ public final class RobotConstants {
         public static final double MUZZLE_Z_IN = 14.0;
 
         /**
-         * Fixed launch angle of the hood, above horizontal, in DEGREES.
-         * Most FTC shooters have a fixed hood; if yours is adjustable, see
-         * {@link org.firstinspires.ftc.teamcode.util.Ballistics} for how to extend the solver.
+         * Fixed launch angle of the hood, <b>above horizontal</b>, in DEGREES.
          *
-         * <p>Physics note: a higher angle needs more speed but gives a steeper, more forgiving
-         * entry into the CELL. 35-45 deg is the usual sweet spot for a ball that must drop into
-         * an upward-facing opening. TUNE ME.
+         * <p><b>78 degrees -- this is an UNDERHAND shooter and the angle is extreme.</b> Verify the
+         * reference direction before trusting any shot: 78 above horizontal is nearly vertical,
+         * whereas 78 from vertical would be 12 above horizontal, and those behave completely
+         * differently. If shots fly absurdly high or absurdly flat, this is the first number to
+         * check.
+         *
+         * <h3>What 78 degrees buys and costs</h3>
+         * For a 100 in shot from a 14 in muzzle to a 36 in CELL:
+         * <table>
+         *   <tr><th>Hood</th><th>Flight</th><th>Exit</th><th>RPM</th><th>Apex</th><th>Lead @40 in/s</th><th>in/RPM</th></tr>
+         *   <tr><td>40</td><td>0.57 s</td><td>231 in/s</td><td>2200</td><td>3.5 ft</td><td>23 in</td><td>0.123</td></tr>
+         *   <tr><td>55</td><td>0.79 s</td><td>220 in/s</td><td>2100</td><td>4.7 ft</td><td>32 in</td><td>0.112</td></tr>
+         *   <tr><td>78</td><td><b>1.52 s</b></td><td>316 in/s</td><td>3010</td><td><b>11.4 ft</b></td><td><b>61 in</b></td><td>0.070</td></tr>
+         * </table>
+         *
+         * <h3>THE BIGGER PROBLEM: the CELL opening is not an upward funnel</h3>
+         * Competition Manual section 9 settles this. The opening is a <b>pentagon 20 in wide by
+         * 14 in tall and 12.04 in deep</b>, and its plane is <b>tilted 59.8 deg from horizontal</b>
+         * -- it faces OUTWARD with its normal 30 deg above horizontal. It behaves like a
+         * backward-leaning catch slot, not a hole in a table.
+         *
+         * <p>So a ball should arrive <b>descending at about 30 degrees</b>, travelling inward, to
+         * pass straight down the 12 in tube. At a 78 degree hood the ball arrives descending at
+         * <b>75 degrees</b> -- 45 degrees off the tube axis. Crossing 12.04 in of depth at that
+         * angle drifts it further sideways than the aperture is tall, so it <b>clips the inside of
+         * the tube</b> instead of entering.
+         *
+         * <p>The hood that puts the ball on the tube axis is roughly <b>64 deg at 60 in, 56 deg at
+         * 100 in, 50 deg at 150 in</b> -- so 50-60 degrees covers the useful range. That is the same
+         * answer the flight-time argument gives, arrived at independently, which is a good sign.
+         *
+         * <p><b>Good:</b> range is roughly half as sensitive to RPM error as a 40 degree hood
+         * (0.070 vs 0.123 in/RPM). For a stationary shot into a horizontal hoop this would be
+         * excellent -- but this target is not a horizontal hoop.
+         *
+         * <p><b>Bad, and it works against shooting on the move:</b> flight time is 1.52 s. The
+         * solver in {@link org.firstinspires.ftc.teamcode.util.Ballistics} assumes robot velocity
+         * stays constant for the whole flight, and 1.5 s is long enough on a path that the robot has
+         * probably begun a turn. The lead is 61 in at only 40 in/s, so a 10% velocity error becomes
+         * a 6 in miss where a 40 degree hood would give 2.3 in -- velocity error hurts about 2.7x
+         * more. At 150 in the apex reaches 16.3 ft, which is worth checking against your venue
+         * ceiling.
+         *
+         * <p>Practical consequence: with this hood, prefer decelerating briefly into the shot over
+         * firing at full speed. Around 55-60 degrees would keep most of the entry forgiveness while
+         * roughly halving both flight time and lead.
          */
-        public static final double LAUNCH_PITCH_DEG = 40.0;
+        public static final double LAUNCH_PITCH_DEG = 78.0;
 
         /** Flywheel outside diameter in inches, INCLUDING any compliant wheel tread. TUNE ME. */
         public static final double FLYWHEEL_DIAMETER_IN = 4.0;
@@ -389,17 +433,22 @@ public final class RobotConstants {
          * <pre>
          *   TICKS_PER_RAD = 537.7 * G / (2*pi) = 85.5777 * G
          * </pre>
-         * Worked values: G=1 -> 85.6 (unusably coarse, 1.5 ticks/deg), <b>G=5 -> 427.9</b>,
-         * G=6.25 -> 534.9, G=8 -> 684.6, G=10 -> 855.8, G=20 -> 1711.6 (too slow, 94 deg/s).
+         * <p><b>This team's turret is geared 3:13, so G = 13/3 = 4.3333</b>, giving the 370.84
+         * below. That also implies <b>6.47 ticks per degree</b>, <b>432 deg/s</b> of free slew
+         * (plenty -- the turret will never be the limiting factor) and <b>105 kg.cm</b> of holding
+         * torque. Full +/-170 deg of travel is 2201 ticks, about 4.1 turns of the motor output
+         * shaft, so route the turret wiring with a service loop or it will tear out.
          *
-         * <p>Free slew speed is {@code 1872 / G} deg/s, so G in the <b>5 to 8</b> band gives
-         * 234-374 deg/s and 122-194 kg.cm of holding torque, which is the right place to be.
-         * <b>Direct drive (G=1) is not viable.</b>
+         * <p><b>Measure it rather than trusting the nameplate:</b> zero the encoder, rotate the
+         * turret exactly 90 degrees against a protractor, and check it reads about <b>582 ticks</b>.
+         * Measuring folds in belt slop and any miscounted teeth, and removes a place to make an
+         * arithmetic error.
          *
-         * <p>The 427.9 below assumes G=5. <b>Measure it rather than trusting a nameplate ratio:</b>
-         * zero the encoder, rotate the turret exactly 90 degrees against a protractor, read the
-         * ticks, and compute {@code ticks / (pi/2)}. Measuring directly folds in belt slop and any
-         * miscounted teeth, and removes one place to make an arithmetic error.
+         * <p>At 4.33:1 the reduction sits just under the 5-8 band that would be ideal, and that
+         * matters for one specific reason: gearbox <b>backlash</b> reflects to the turret divided by
+         * G, so a lower G leaves more of it visible at the barrel. Backlash, not encoder resolution,
+         * will be this turret's accuracy floor. Prefer ONE clean external reduction over two, since
+         * every stage adds its own.
          *
          * <p>Note the previous placeholder here was 1200.0, which silently implied G=14.02 -- almost
          * certainly not what you built. Also be aware the real accuracy limit is <b>backlash</b>,
@@ -407,7 +456,18 @@ public final class RobotConstants {
          * reduction over two. At G=5, full +/-170 deg of travel is 4.7 turns of the motor output
          * shaft, so route the turret wiring with a service loop or it will tear out.
          */
-        public static final double TICKS_PER_RAD = 982.9;   // 85.5777 * G, with G = 5
+        // 982.82 = 1425.06 * (65/15) / (2*pi)
+        //
+        // The turret motor is the goBILDA 5203 **117 RPM (50.9:1)** unit, whose encoder gives
+        // 1425.06 counts per output revolution -- NOT the 312 RPM (19.2:1) unit's 537.69. Through
+        // the 15:65 gear reduction (4.3333:1) that is 982.82 ticks per radian of turret rotation.
+        //
+        // NOTE (Nov 2026): the turret now runs on two continuous servos with NO encoder, so this
+        // value is currently unused. Kept for if an encoder is added back.
+        //
+        // CONFIRM ON THE ROBOT: zero the turret, rotate exactly 90 degrees against a protractor,
+        // and expect ~1544 ticks. Do it in both directions -- the difference is backlash.
+        public static final double TICKS_PER_RAD = 982.82;
 
         /** Mechanical travel limits in radians, relative to "straight forward" = 0. */
         public static final double MIN_ANGLE_RAD = Math.toRadians(-170);
@@ -447,7 +507,7 @@ public final class RobotConstants {
          */
         public static final double X_IN = 5.0;    // forward of tracking point
         public static final double Y_IN = 0.0;    // left of tracking point
-        public static final double Z_IN = 10.5;   // above the floor
+        public static final double Z_IN = 16.0;    // above the floor
 
         /**
          * Which way the camera points, relative to robot forward, in DEGREES, CCW positive.
@@ -467,6 +527,31 @@ public final class RobotConstants {
         public static final int WIDTH  = 640;
         public static final int HEIGHT = 480;
 
+        // ---- Lens intrinsics: Logitech C270 ---------------------------------------------------
+        //
+        // These are NOT guesses. They were read out of the SDK's own built-in calibration table,
+        // RobotCore-12.0.0.aar -> res/xml/builtinwebcamcalibrations.xml:
+        //
+        //   <!-- Logitech HD Webcam C270, Calibrated by Noah Andrews, 2019.03.13 using 3DF Zephyr -->
+        //   <Camera vid="Logitech" pid="0x0825">
+        //       <Calibration size="640 480"
+        //                    focalLength="822.317f, 822.317f"
+        //                    principalPoint="319.495f, 242.502f"
+        //                    distortionCoefficients="-0.0449369, 1.17277, 0, 0, -3.63244, 0, 0, 0" />
+        //   </Camera>
+        //
+        // An earlier version of this file had FX = 622.0, which was a placeholder and 24% low. Since
+        // the ball tracker computes distance as FX * ballDiameter / (2 * radiusPx), focal length is
+        // directly proportional to every distance it reports.
+
+        /** Reference resolution these intrinsics were calibrated at. */
+        public static final int CAL_WIDTH  = 640;
+        public static final int CAL_HEIGHT = 480;
+
+        public static final double FX = 822.317;
+        public static final double FY = 822.317;
+        public static final double CX = 319.495;
+        public static final double CY = 242.502;
         /** Degrees the camera is tilted UP from level. Measure with a phone level app. */
         public static final double PITCH_DEG = 12.0;
 
@@ -479,16 +564,20 @@ public final class RobotConstants {
         public static final double TURRET_PIVOT_Y_IN = 0.0;
 
         /**
-         * Lens intrinsics in pixels at the resolution above, used by the ball tracker to turn
-         * pixels into angles and distances. The SDK already knows these for common webcams for
-         * AprilTag purposes, but the ball tracker needs them explicitly.
-         * TUNE ME: {@code T8_CameraIntrinsics}, or read them off the SDK's built-in calibration
-         * for your camera in teamwebcamcalibrations.xml.
+         * Intrinsics scale LINEARLY with capture resolution, and forgetting that is an easy and
+         * invisible bug: using 640x480 numbers on a 320x240 image doubles every computed distance,
+         * and nothing errors.
+         *
+         * <p>So never read {@link #FX} directly in code that captures at some other resolution --
+         * call these instead, passing the resolution actually requested from the camera.
+         *
+         * <p>Worked example: at 320x240, FX becomes 411.16 and the principal point becomes
+         * (159.75, 121.25).
          */
-        public static final double FX = 622.0;
-        public static final double FY = 622.0;
-        public static final double CX = 319.5;
-        public static final double CY = 239.5;
+        public static double fxAt(int captureWidth)  { return FX * captureWidth  / (double) CAL_WIDTH; }
+        public static double fyAt(int captureHeight) { return FY * captureHeight / (double) CAL_HEIGHT; }
+        public static double cxAt(int captureWidth)  { return CX * captureWidth  / (double) CAL_WIDTH; }
+        public static double cyAt(int captureHeight) { return CY * captureHeight / (double) CAL_HEIGHT; }
 
         /**
          * Manual exposure keeps AprilTags sharp while the robot moves. TUNE ME.

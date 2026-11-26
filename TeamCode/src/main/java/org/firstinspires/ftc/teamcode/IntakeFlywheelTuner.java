@@ -46,7 +46,10 @@ import org.firstinspires.ftc.teamcode.util.Ballistics;
  * <ul>
  *   <li><b>Cross</b>: intake in. <b>Triangle</b>: intake out.</li>
  *   <li><b>Circle</b> (hold): spin the flywheel to the commanded RPM.</li>
- *   <li><b>D-pad up/down</b>: commanded RPM, 100 at a time. <b>D-pad left/right</b>: 25 at a time.</li>
+ *   <li><b>D-pad up/down</b>: commanded RPM, <b>5 rpm</b> at a time. <b>D-pad left/right</b>:
+ *       50 at a time, to get into the ballpark without a hundred keypresses.</li>
+ *   <li><b>Bumpers</b>: transfer efficiency, <b>1 percentage point</b> at a time, live.
+ *       <b>Touchpad</b> resets it to the committed value.</li>
  *   <li><b>Square</b>: switch the predicted-range readout between POLLEN and NECTAR.</li>
  * </ul>
  *
@@ -68,6 +71,15 @@ public class IntakeFlywheelTuner extends LinearOpMode {
 
     /** Muzzle height above the floor, inches. MEASURE THIS on your robot. */
     private static final double MUZZLE_HEIGHT_IN = 14.0;
+
+    /** Fine RPM step, dpad up/down. At this hood angle 1 rpm is roughly 0.07 in of range. */
+    private static final double RPM_STEP_FINE = 1.0;
+
+    /** Coarse RPM step, dpad left/right, for getting into the ballpark without 100 keypresses. */
+    private static final double RPM_STEP_COARSE = 50.0;
+
+    /** Transfer-efficiency step, bumpers. One percentage point. */
+    private static final double EFF_STEP = 0.01;
 
     @Override
     public void runOpMode() {
@@ -91,17 +103,27 @@ public class IntakeFlywheelTuner extends LinearOpMode {
         double commandedRpm = 2400;   // a sensible mid-band starting point, not full power
         BallType ballType = BallType.POLLEN;
         boolean upWas = false, downWas = false, leftWas = false, rightWas = false, squareWas = false;
+        boolean rbWas = false, lbWas = false, touchWas = false;
 
         while (opModeIsActive()) {
             // --- RPM setpoint ---------------------------------------------------------------
-            if (gamepad1.dpad_up && !upWas) commandedRpm += 100;
+            // RPM: dpad up/down in 1s for fine work, left/right in 50s to get to the ballpark.
+            if (gamepad1.dpad_up && !upWas) commandedRpm += RPM_STEP_FINE;
             upWas = gamepad1.dpad_up;
-            if (gamepad1.dpad_down && !downWas) commandedRpm = Math.max(0, commandedRpm - 100);
+            if (gamepad1.dpad_down && !downWas) commandedRpm = Math.max(0, commandedRpm - RPM_STEP_FINE);
             downWas = gamepad1.dpad_down;
-            if (gamepad1.dpad_right && !rightWas) commandedRpm += 25;
+            if (gamepad1.dpad_right && !rightWas) commandedRpm += RPM_STEP_COARSE;
             rightWas = gamepad1.dpad_right;
-            if (gamepad1.dpad_left && !leftWas) commandedRpm = Math.max(0, commandedRpm - 25);
+            if (gamepad1.dpad_left && !leftWas) commandedRpm = Math.max(0, commandedRpm - RPM_STEP_COARSE);
             leftWas = gamepad1.dpad_left;
+
+            // Transfer efficiency: bumpers, 1 percentage point at a time, live.
+            if (gamepad1.right_bumper && !rbWas) ballType.adjustEfficiency(+EFF_STEP);
+            rbWas = gamepad1.right_bumper;
+            if (gamepad1.left_bumper && !lbWas) ballType.adjustEfficiency(-EFF_STEP);
+            lbWas = gamepad1.left_bumper;
+            if (gamepad1.touchpad && !touchWas) ballType.resetEfficiency();
+            touchWas = gamepad1.touchpad;
 
             if (gamepad1.square && !squareWas) {
                 ballType = (ballType == BallType.POLLEN) ? BallType.NECTAR_RED : BallType.POLLEN;
@@ -128,7 +150,8 @@ public class IntakeFlywheelTuner extends LinearOpMode {
             telemetry.addData("Ball", "%s   (Square to swap)", ballType);
             telemetry.addLine();
             telemetry.addLine("=== FLYWHEEL ===");
-            telemetry.addData("Commanded", "%.0f rpm   (dpad up/down 100, left/right 25)", commandedRpm);
+            telemetry.addData("Commanded", "%.0f rpm   (dpad up/down %.0f, left/right %.0f)",
+                    commandedRpm, RPM_STEP_FINE, RPM_STEP_COARSE);
             telemetry.addData("Ramping to", "%.0f rpm", shooter.getCommandedRpm());
             telemetry.addData("Actual", "%.0f rpm  (averaged over %d samples)",
                 actualRpm, RobotConstants.Shoot.RPM_SAMPLE_COUNT);
@@ -136,6 +159,20 @@ public class IntakeFlywheelTuner extends LinearOpMode {
             telemetry.addData("State", shooter.isAtSpeed() ? ">>> READY -- FEED A BALL <<<"
                 : (gamepad1.circle ? "spinning up" : "hold CIRCLE to spin"));
             telemetry.addData("Current", "%.2f A   (9.2 A = stall)", shooter.getCurrentAmps());
+
+            telemetry.addLine();
+            telemetry.addLine("=== TRANSFER EFFICIENCY (bumpers, 1% steps) ===");
+            telemetry.addData("live", "%.2f  (%.0f%%)%s",
+                    ballType.getTransferEfficiency(),
+                    ballType.getTransferEfficiency() * 100,
+                    ballType.isEfficiencyTuned() ? "   *** TUNED ***" : "");
+            telemetry.addData("committed", "%.2f  (%.0f%%)",
+                    ballType.defaultTransferEfficiency,
+                    ballType.defaultTransferEfficiency * 100);
+            if (ballType.isEfficiencyTuned()) {
+                telemetry.addLine("NOT SAVED -- this resets on every deploy/restart.");
+                telemetry.addLine("Write it into BallType." + ballType.name() + " when happy.");
+            }
 
             telemetry.addLine();
             telemetry.addLine("=== WHAT THIS RPM SHOULD DO ===");
@@ -162,6 +199,7 @@ public class IntakeFlywheelTuner extends LinearOpMode {
             telemetry.addLine("the ball is flying well over the CELL.");
             telemetry.addLine();
             telemetry.addLine("Cross = intake in   Triangle = intake out   Circle = shoot");
+            telemetry.addLine("Bumpers = efficiency 1%   Touchpad = reset it   Square = ball");
             telemetry.update();
         }
 
