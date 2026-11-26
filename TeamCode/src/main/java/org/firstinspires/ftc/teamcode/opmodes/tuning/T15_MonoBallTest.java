@@ -80,7 +80,7 @@ public class T15_MonoBallTest extends LinearOpMode {
     private static final String CAMERA_NAME = "Webcam 1";
 
     /** Lens height above the tiles, inches. MEASURE THIS -- range accuracy scales with it. */
-    private static final double CAMERA_HEIGHT_IN = 10.5;
+    private static final double CAMERA_HEIGHT_IN = 16.0;
 
     /**
      * Camera tilt, <b>DOWN-positive</b> (opposite to {@code RobotConstants.Camera.PITCH_DEG}).
@@ -92,7 +92,7 @@ public class T15_MonoBallTest extends LinearOpMode {
      * half of the image and the nearest visible floor is about 21 in away at a 10.5 in lens. At
      * 18 degrees down the blind ring shrinks and most of the frame becomes usable floor.
      */
-    private static final double CAMERA_PITCH_DOWN_DEG = 18.0;
+    private static final double CAMERA_PITCH_DOWN_DEG = -12.0;
 
     private static final double BIAS_STEP = 0.01;
     private static final double TOL_STEP = 0.02;
